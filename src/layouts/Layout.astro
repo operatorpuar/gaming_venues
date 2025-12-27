@@ -88,8 +88,10 @@ const {
 			window.addEventListener('load', function() {
 				// Log performance metrics
 				if ('performance' in window) {
-					const perfData = performance.getEntriesByType('navigation')[0];
-					console.log('Page load time:', perfData.loadEventEnd - perfData.loadEventStart, 'ms');
+					const perfData = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+					if (perfData) {
+						console.log('Page load time:', perfData.loadEventEnd - perfData.loadEventStart, 'ms');
+					}
 				}
 			});
 			
@@ -104,11 +106,14 @@ const {
 				
 				// Handle image loading errors globally
 				document.addEventListener('error', function(e) {
-					if (e.target.tagName === 'IMG') {
-						const img = e.target;
+					if (e.target && (e.target as HTMLElement).tagName === 'IMG') {
+						const img = e.target as HTMLImageElement;
 						if (img.dataset.fallback && img.src !== img.dataset.fallback) {
+							console.warn('Image failed to load:', img.src, 'Using fallback:', img.dataset.fallback);
 							img.src = img.dataset.fallback;
 							img.classList.add('fallback-image');
+							// Remove srcset to prevent further errors
+							img.removeAttribute('srcset');
 						}
 					}
 				}, true);
@@ -144,6 +149,36 @@ const {
 	
 	::-webkit-scrollbar-track {
 		background: hsl(var(--b2));
+	}
+	
+	/* Global image consistency rules */
+	.card figure {
+		margin: 0;
+		padding: 0;
+	}
+	
+	.card figure.aspect-card {
+		aspect-ratio: 3 / 2;
+		min-height: 200px;
+		background-color: #f3f4f6;
+	}
+	
+	/* Ensure all business card images have consistent sizing */
+	.card .image-container {
+		width: 100%;
+		height: 100%;
+	}
+	
+	.card .image-container.aspect-card {
+		aspect-ratio: 3 / 2;
+		min-height: 200px;
+	}
+	
+	.card .optimized-image {
+		width: 100% !important;
+		height: 100% !important;
+		object-fit: cover !important;
+		object-position: center !important;
 	}
 	
 	::-webkit-scrollbar-thumb {

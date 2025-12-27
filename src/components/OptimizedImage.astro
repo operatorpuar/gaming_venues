@@ -23,6 +23,54 @@ const {
   priority = false
 } = Astro.props;
 
+// Validate and clean the image URL
+const cleanImageUrl = (url: string): string => {
+  if (!url || url === '/placeholder-business.svg') {
+    return fallback;
+  }
+  
+  try {
+    // Check if it's a valid URL
+    new URL(url);
+    
+    // Special handling for Google images to ensure consistent sizing
+    if (url.includes('googleusercontent.com') || url.includes('googleapis.com')) {
+      let cleanUrl = url;
+      
+      // Handle different Google URL formats:
+      // Format 1: =w408-h272-k-no (Google Photos/Street View with k-no suffix)
+      // Format 2: ?w=408&h=240 or &w=408&h=240 (Google APIs with separate parameters)
+      
+      if (cleanUrl.includes('-k-no')) {
+        // Handle Google Photos/Street View format: =w408-h272-k-no
+        cleanUrl = cleanUrl.replace(/=w\d+-h\d+-k-no/g, '=w400-h300-k-no');
+      } else if (cleanUrl.includes('w=') && cleanUrl.includes('h=')) {
+        // Handle Google APIs format with separate w= and h= parameters
+        cleanUrl = cleanUrl.replace(/[?&]w=\d+/g, '');
+        cleanUrl = cleanUrl.replace(/[?&]h=\d+/g, '');
+        
+        // Add clean parameters
+        const separator = cleanUrl.includes('?') ? '&' : '?';
+        cleanUrl += `${separator}w=400&h=300`;
+      } else {
+        // Fallback: add parameters if none exist
+        const separator = cleanUrl.includes('?') ? '&' : '?';
+        cleanUrl += `${separator}w=400&h=300`;
+      }
+      
+      return cleanUrl;
+    }
+    
+    return url;
+  } catch (error) {
+    console.warn('Invalid URL provided to cleanImageUrl:', url, error);
+    // If not a valid URL, assume it's a relative path
+    return url.startsWith('/') ? url : `/${url}`;
+  }
+};
+
+const cleanSrc = cleanImageUrl(src);
+
 // Generate responsive image sizes if not provided
 const defaultSizes = sizes || '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw';
 
@@ -31,21 +79,46 @@ const imageLoading = priority ? 'eager' : loading;
 
 // Generate srcset for responsive images if we have width/height
 const generateSrcSet = (baseSrc: string, baseWidth?: number) => {
-  if (!baseWidth) return undefined;
+  if (!baseWidth || baseSrc === fallback) return undefined;
   
   const widths = [320, 640, 768, 1024, 1280];
   return widths
     .filter(w => w <= baseWidth * 2) // Don't upscale beyond 2x
-    .map(w => `${baseSrc}?w=${w} ${w}w`)
+    .map(w => {
+      // Special handling for Google images
+      if (baseSrc.includes('googleusercontent.com') || baseSrc.includes('googleapis.com')) {
+        let responsiveUrl = baseSrc;
+        
+        if (baseSrc.includes('-k-no')) {
+          // Handle Google Photos/Street View format (=w408-h272-k-no)
+          const height = Math.round(w * 2 / 3); // 3:2 aspect ratio
+          responsiveUrl = baseSrc.replace(/=w\d+-h\d+-k-no/g, `=w${w}-h${height}-k-no`);
+        } else {
+          // Handle Google APIs format with separate parameters
+          responsiveUrl = responsiveUrl.replace(/[?&]w=\d+/g, '');
+          responsiveUrl = responsiveUrl.replace(/[?&]h=\d+/g, '');
+          
+          const height = Math.round(w * 2 / 3); // 3:2 aspect ratio
+          const separator = responsiveUrl.includes('?') ? '&' : '?';
+          responsiveUrl += `${separator}w=${w}&h=${height}`;
+        }
+        
+        return `${responsiveUrl} ${w}w`;
+      } else {
+        // For other images, check if URL already has parameters
+        const separator = baseSrc.includes('?') ? '&' : '?';
+        return `${baseSrc}${separator}w=${w} ${w}w`;
+      }
+    })
     .join(', ');
 };
 
-const srcSet = generateSrcSet(src, width);
+const srcSet = generateSrcSet(cleanSrc, width);
 ---
 
 <div class={`image-container ${className}`}>
   <img
-    src={src}
+    src={cleanSrc}
     alt={alt}
     width={width}
     height={height}
@@ -55,7 +128,36 @@ const srcSet = generateSrcSet(src, width);
     srcset={srcSet}
     class="optimized-image"
     data-fallback={fallback}
-    onerror="this.onerror=null; this.src=this.dataset.fallback; this.classList.add('fallback-image');"
+    data-original-src={src}
+    onerror="
+      this.onerror=null; 
+      if (this.src !== this.dataset.fallback) {
+        console.error('Image failed to load:', {
+          currentSrc: this.src,
+          originalSrc: this.dataset.originalSrc,
+          fallback: this.dataset.fallback,
+          alt: this.alt,
+          error: 'Load failed - possibly CORS or access restrictions'
+        });
+        
+        // Try the original URL as a last resort before falling back
+        if (this.src !== this.dataset.originalSrc && this.dataset.originalSrc) {
+          console.log('Trying original URL as fallback:', this.dataset.originalSrc);
+          this.src = this.dataset.originalSrc;
+          this.onerror = function() {
+            console.log('Original URL also failed, using placeholder');
+            this.onerror = null;
+            this.src = this.dataset.fallback;
+            this.classList.add('fallback-image');
+            this.removeAttribute('srcset');
+          };
+        } else {
+          this.src = this.dataset.fallback; 
+          this.classList.add('fallback-image');
+          this.removeAttribute('srcset');
+        }
+      }
+    "
     onload="this.classList.add('loaded');"
   />
   
@@ -69,14 +171,17 @@ const srcSet = generateSrcSet(src, width);
   .image-container {
     position: relative;
     overflow: hidden;
+    background-color: #f3f4f6;
   }
   
   .optimized-image {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: opacity 0.3s ease-in-out;
+    object-position: center;
+    transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
     opacity: 0;
+    display: block;
   }
   
   .optimized-image.loaded {
@@ -107,7 +212,7 @@ const srcSet = generateSrcSet(src, width);
     pointer-events: none;
   }
   
-  /* Responsive aspect ratios */
+  /* Ensure consistent aspect ratios */
   .image-container.aspect-square {
     aspect-ratio: 1 / 1;
   }
@@ -122,6 +227,70 @@ const srcSet = generateSrcSet(src, width);
   
   .image-container.aspect-card {
     aspect-ratio: 3 / 2;
+    min-height: 200px; /* Ensure minimum height */
+  }
+  
+  /* Force consistent sizing for all images */
+  .image-container.aspect-card .optimized-image {
+    min-width: 100%;
+    min-height: 100%;
+    max-width: none;
+    max-height: none;
+  }
+  
+  /* Hover effects */
+  .image-container:hover .optimized-image {
+    transform: scale(1.05);
+  }
+  
+  /* Loading skeleton animation */
+  .loading-skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+  }
+  
+  @keyframes loading {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+  
+  /* Ensure images fill container properly */
+  @supports (aspect-ratio: 3 / 2) {
+    .image-container.aspect-card {
+      aspect-ratio: 3 / 2;
+    }
+    
+    .image-container.aspect-card .optimized-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+    }
+  }
+  
+  /* Fallback for browsers without aspect-ratio support */
+  @supports not (aspect-ratio: 3 / 2) {
+    .image-container.aspect-card {
+      position: relative;
+      width: 100%;
+      height: 0;
+      padding-bottom: 66.67%; /* 3:2 aspect ratio */
+    }
+    
+    .image-container.aspect-card .optimized-image {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+    }
   }
 </style>
 
