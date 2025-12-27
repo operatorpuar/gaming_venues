@@ -41,7 +41,7 @@ const cleanImageUrl = (url: string): string => {
       // Format 1: =w408-h272-k-no (Google Photos/Street View with k-no suffix)
       // Format 2: ?w=408&h=240 or &w=408&h=240 (Google APIs with separate parameters)
       
-      if (cleanUrl.includes('-k-no')) {
+      if (cleanUrl.includes('=w') && cleanUrl.includes('-k-no')) {
         // Handle Google Photos/Street View format: =w408-h272-k-no
         cleanUrl = cleanUrl.replace(/=w\d+-h\d+-k-no/g, '=w400-h300-k-no');
       } else if (cleanUrl.includes('w=') && cleanUrl.includes('h=')) {
@@ -89,7 +89,7 @@ const generateSrcSet = (baseSrc: string, baseWidth?: number) => {
       if (baseSrc.includes('googleusercontent.com') || baseSrc.includes('googleapis.com')) {
         let responsiveUrl = baseSrc;
         
-        if (baseSrc.includes('-k-no')) {
+        if (baseSrc.includes('=w') && baseSrc.includes('-k-no')) {
           // Handle Google Photos/Street View format (=w408-h272-k-no)
           const height = Math.round(w * 2 / 3); // 3:2 aspect ratio
           responsiveUrl = baseSrc.replace(/=w\d+-h\d+-k-no/g, `=w${w}-h${height}-k-no`);

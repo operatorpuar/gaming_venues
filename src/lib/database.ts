@@ -658,22 +658,19 @@ export class TursoDatabase implements DatabaseService {
    * Get categories with business counts
    */
   async getCategoriesWithCounts(): Promise<Array<CategoryType & { business_count: number }>> {
-    // Optimized query using subquery to avoid cartesian product
+    // Optimized query using LEFT JOIN and GROUP BY instead of subqueries
     const categoriesWithCounts = await db.select({
       id: categories.id,
       name: categories.name,
       slug: categories.slug,
       is_active: categories.is_active,
-      business_count: sql<number>`COALESCE((
-        SELECT COUNT(DISTINCT bc.business_id)
-        FROM business_categories bc
-        INNER JOIN businesses b ON bc.business_id = b.id
-        WHERE bc.category_id = categories.id 
-        AND b.is_active = 1
-      ), 0)`.as('business_count')
+      business_count: sql<number>`COUNT(DISTINCT CASE WHEN ${businesses.is_active} = 1 THEN ${business_categories.business_id} END)`.as('business_count')
     })
     .from(categories)
+    .leftJoin(business_categories, eq(categories.id, business_categories.category_id))
+    .leftJoin(businesses, eq(business_categories.business_id, businesses.id))
     .where(eq(categories.is_active, true))
+    .groupBy(categories.id, categories.name, categories.slug, categories.is_active)
     .orderBy(asc(categories.name));
 
     return categoriesWithCounts;
@@ -683,23 +680,20 @@ export class TursoDatabase implements DatabaseService {
    * Get amenities with business counts, grouped by category
    */
   async getAmenitiesWithCounts(): Promise<Array<AmenityType & { business_count: number }>> {
-    // Optimized query using subquery to avoid cartesian product
+    // Optimized query using LEFT JOIN and GROUP BY instead of subqueries
     const amenitiesWithCounts = await db.select({
       id: amenities.id,
       name: amenities.name,
       slug: amenities.slug,
       category: amenities.category,
       is_active: amenities.is_active,
-      business_count: sql<number>`COALESCE((
-        SELECT COUNT(DISTINCT ba.business_id)
-        FROM business_amenities ba
-        INNER JOIN businesses b ON ba.business_id = b.id
-        WHERE ba.amenity_id = amenities.id 
-        AND b.is_active = 1
-      ), 0)`.as('business_count')
+      business_count: sql<number>`COUNT(DISTINCT CASE WHEN ${businesses.is_active} = 1 THEN ${business_amenities.business_id} END)`.as('business_count')
     })
     .from(amenities)
+    .leftJoin(business_amenities, eq(amenities.id, business_amenities.amenity_id))
+    .leftJoin(businesses, eq(business_amenities.business_id, businesses.id))
     .where(eq(amenities.is_active, true))
+    .groupBy(amenities.id, amenities.name, amenities.slug, amenities.category, amenities.is_active)
     .orderBy(asc(amenities.category), asc(amenities.name));
 
     return amenitiesWithCounts;
@@ -733,22 +727,19 @@ export class TursoDatabase implements DatabaseService {
    * Get regions with business counts, organized by state
    */
   async getRegionsWithCounts(): Promise<Array<RegionType & { business_count: number }>> {
-    // Optimized query using subquery to avoid cartesian product
+    // Optimized query using LEFT JOIN and GROUP BY instead of subqueries
     const regionsWithCounts = await db.select({
       id: regions.id,
       name: regions.name,
       slug: regions.slug,
       state: regions.state,
       country: regions.country,
-      business_count: sql<number>`COALESCE((
-        SELECT COUNT(DISTINCT br.business_id)
-        FROM business_regions br
-        INNER JOIN businesses b ON br.business_id = b.id
-        WHERE br.region_id = regions.id 
-        AND b.is_active = 1
-      ), 0)`.as('business_count')
+      business_count: sql<number>`COUNT(DISTINCT CASE WHEN ${businesses.is_active} = 1 THEN ${business_regions.business_id} END)`.as('business_count')
     })
     .from(regions)
+    .leftJoin(business_regions, eq(regions.id, business_regions.region_id))
+    .leftJoin(businesses, eq(business_regions.business_id, businesses.id))
+    .groupBy(regions.id, regions.name, regions.slug, regions.state, regions.country)
     .orderBy(asc(regions.state), asc(regions.name));
 
     return regionsWithCounts;
@@ -815,23 +806,20 @@ export class TursoDatabase implements DatabaseService {
    * Get regions for a specific state with business counts
    */
   async getRegionsByState(state: string): Promise<Array<RegionType & { business_count: number }>> {
-    // Optimized query using subquery to avoid cartesian product
+    // Optimized query using LEFT JOIN and GROUP BY instead of subqueries
     const regionsWithCounts = await db.select({
       id: regions.id,
       name: regions.name,
       slug: regions.slug,
       state: regions.state,
       country: regions.country,
-      business_count: sql<number>`COALESCE((
-        SELECT COUNT(DISTINCT br.business_id)
-        FROM business_regions br
-        INNER JOIN businesses b ON br.business_id = b.id
-        WHERE br.region_id = regions.id 
-        AND b.is_active = 1
-      ), 0)`.as('business_count')
+      business_count: sql<number>`COUNT(DISTINCT CASE WHEN ${businesses.is_active} = 1 THEN ${business_regions.business_id} END)`.as('business_count')
     })
     .from(regions)
+    .leftJoin(business_regions, eq(regions.id, business_regions.region_id))
+    .leftJoin(businesses, eq(business_regions.business_id, businesses.id))
     .where(eq(regions.state, state))
+    .groupBy(regions.id, regions.name, regions.slug, regions.state, regions.country)
     .orderBy(asc(regions.name));
 
     return regionsWithCounts;
