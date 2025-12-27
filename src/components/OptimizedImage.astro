@@ -1,0 +1,159 @@
+---
+interface Props {
+  src: string;
+  alt: string;
+  width?: number;
+  height?: number;
+  class?: string;
+  loading?: 'lazy' | 'eager';
+  fallback?: string;
+  sizes?: string;
+  priority?: boolean;
+}
+
+const { 
+  src, 
+  alt, 
+  width, 
+  height, 
+  class: className = '', 
+  loading = 'lazy',
+  fallback = '/placeholder-business.svg',
+  sizes,
+  priority = false
+} = Astro.props;
+
+// Generate responsive image sizes if not provided
+const defaultSizes = sizes || '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw';
+
+// Use eager loading for priority images
+const imageLoading = priority ? 'eager' : loading;
+
+// Generate srcset for responsive images if we have width/height
+const generateSrcSet = (baseSrc: string, baseWidth?: number) => {
+  if (!baseWidth) return undefined;
+  
+  const widths = [320, 640, 768, 1024, 1280];
+  return widths
+    .filter(w => w <= baseWidth * 2) // Don't upscale beyond 2x
+    .map(w => `${baseSrc}?w=${w} ${w}w`)
+    .join(', ');
+};
+
+const srcSet = generateSrcSet(src, width);
+---
+
+<div class={`image-container ${className}`}>
+  <img
+    src={src}
+    alt={alt}
+    width={width}
+    height={height}
+    loading={imageLoading}
+    decoding="async"
+    sizes={defaultSizes}
+    srcset={srcSet}
+    class="optimized-image"
+    data-fallback={fallback}
+    onerror="this.onerror=null; this.src=this.dataset.fallback; this.classList.add('fallback-image');"
+    onload="this.classList.add('loaded');"
+  />
+  
+  <!-- Loading placeholder -->
+  <div class="loading-placeholder" aria-hidden="true">
+    <div class="loading-skeleton w-full h-full rounded"></div>
+  </div>
+</div>
+
+<style>
+  .image-container {
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .optimized-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: opacity 0.3s ease-in-out;
+    opacity: 0;
+  }
+  
+  .optimized-image.loaded {
+    opacity: 1;
+  }
+  
+  .optimized-image.fallback-image {
+    opacity: 0.7;
+    filter: grayscale(0.3);
+  }
+  
+  .loading-placeholder {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f3f4f6;
+    z-index: 1;
+    transition: opacity 0.3s ease-in-out;
+  }
+  
+  .optimized-image.loaded + .loading-placeholder {
+    opacity: 0;
+    pointer-events: none;
+  }
+  
+  /* Responsive aspect ratios */
+  .image-container.aspect-square {
+    aspect-ratio: 1 / 1;
+  }
+  
+  .image-container.aspect-video {
+    aspect-ratio: 16 / 9;
+  }
+  
+  .image-container.aspect-photo {
+    aspect-ratio: 4 / 3;
+  }
+  
+  .image-container.aspect-card {
+    aspect-ratio: 3 / 2;
+  }
+</style>
+
+<script>
+  // Enhanced image loading with intersection observer
+  document.addEventListener('DOMContentLoaded', function() {
+    // Only run if IntersectionObserver is supported
+    if ('IntersectionObserver' in window) {
+      const imageObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const img = entry.target as HTMLImageElement;
+            
+            // Start loading the image
+            if (img.dataset.src) {
+              img.src = img.dataset.src;
+              img.removeAttribute('data-src');
+            }
+            
+            // Stop observing this image
+            observer.unobserve(img);
+          }
+        });
+      }, {
+        // Start loading when image is 50px away from viewport
+        rootMargin: '50px'
+      });
+      
+      // Observe all lazy images
+      document.querySelectorAll('img[loading="lazy"]').forEach(img => {
+        imageObserver.observe(img);
+      });
+    }
+  });
+</script>

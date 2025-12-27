@@ -41,44 +41,72 @@ const regionsByState = regions.reduce((acc, region) => {
 }, {} as Record<string, typeof regions>);
 ---
 
-<div class="bg-base-100 shadow-sm rounded-lg p-4 mb-6">
-  <form method="GET" action="/businesses" class="space-y-4">
-    <!-- Compact Search Bar -->
-    <div class="flex gap-2">
-      <input 
-        type="text" 
-        name="query" 
-        placeholder="Search venues..." 
-        class="input input-bordered input-sm flex-1"
-        value={currentFilters.query || ''}
-      />
-      <button type="submit" class="btn btn-primary btn-sm">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-      </button>
+<div class="bg-base-100 shadow-sm rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+  <form method="GET" action="/businesses" class="space-y-3 sm:space-y-4" id="search-form">
+    <!-- Mobile-first Search Bar -->
+    <div class="flex flex-col sm:flex-row gap-2">
+      <div class="relative flex-1">
+        <input 
+          type="text" 
+          name="query" 
+          placeholder="Search venues, locations..." 
+          class="input input-bordered input-sm sm:input-md w-full pr-10"
+          value={currentFilters.query || ''}
+          autocomplete="off"
+          aria-label="Search gaming venues"
+        />
+        <button 
+          type="submit" 
+          class="absolute right-2 top-1/2 transform -translate-y-1/2 btn btn-ghost btn-sm btn-square"
+          aria-label="Search"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </button>
+      </div>
+      
+      <!-- Mobile filter toggle -->
+      <div class="sm:hidden">
+        <button 
+          type="button" 
+          class="btn btn-outline btn-sm w-full"
+          onclick="document.getElementById('mobile-filters').classList.toggle('hidden')"
+          aria-expanded="false"
+          aria-controls="mobile-filters"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.707A1 1 0 013 7V4z" />
+          </svg>
+          Filters
+        </button>
+      </div>
     </div>
 
-    <!-- Compact Quick Filters -->
-    <div class="flex flex-wrap gap-2 items-center">
+    <!-- Desktop Quick Filters -->
+    <div class="hidden sm:flex flex-wrap gap-2 items-center">
       <!-- Location Filters -->
-      <input 
-        type="text" 
-        name="city" 
-        placeholder="City" 
-        class="input input-bordered input-xs w-24"
-        value={currentFilters.city || ''}
-      />
-      <input 
-        type="text" 
-        name="state" 
-        placeholder="State" 
-        class="input input-bordered input-xs w-24"
-        value={currentFilters.state || ''}
-      />
+      <div class="flex gap-2">
+        <input 
+          type="text" 
+          name="city" 
+          placeholder="City" 
+          class="input input-bordered input-xs w-20 lg:w-24"
+          value={currentFilters.city || ''}
+          autocomplete="address-level2"
+        />
+        <input 
+          type="text" 
+          name="state" 
+          placeholder="State" 
+          class="input input-bordered input-xs w-16 lg:w-20"
+          value={currentFilters.state || ''}
+          autocomplete="address-level1"
+        />
+      </div>
       
       <!-- Rating Filter -->
-      <select name="rating_min" class="select select-bordered select-xs w-20">
+      <select name="rating_min" class="select select-bordered select-xs w-20" aria-label="Minimum rating">
         <option value="">Rating</option>
         <option value="3" selected={currentFilters.rating_min === 3}>3+</option>
         <option value="4" selected={currentFilters.rating_min === 4}>4+</option>
@@ -86,7 +114,7 @@ const regionsByState = regions.reduce((acc, region) => {
       </select>
 
       <!-- Quick toggles -->
-      <label class="label cursor-pointer gap-1">
+      <label class="label cursor-pointer gap-1 p-0">
         <input 
           type="checkbox" 
           name="featured" 
@@ -97,7 +125,7 @@ const regionsByState = regions.reduce((acc, region) => {
         <span class="label-text text-xs">Featured</span>
       </label>
       
-      <label class="label cursor-pointer gap-1">
+      <label class="label cursor-pointer gap-1 p-0">
         <input 
           type="checkbox" 
           name="verified" 
@@ -110,7 +138,7 @@ const regionsByState = regions.reduce((acc, region) => {
 
       <!-- Advanced Filters Toggle -->
       <div class="dropdown dropdown-end">
-        <div tabindex="0" role="button" class="btn btn-outline btn-xs">
+        <div tabindex="0" role="button" class="btn btn-outline btn-xs" aria-haspopup="true">
           More Filters
           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -170,35 +198,246 @@ const regionsByState = regions.reduce((acc, region) => {
       <button type="submit" class="btn btn-primary btn-xs">Apply</button>
       <a href="/businesses" class="btn btn-ghost btn-xs">Clear</a>
     </div>
+
+    <!-- Mobile Filters (Hidden by default) -->
+    <div id="mobile-filters" class="hidden sm:hidden space-y-4 pt-4 border-t border-base-300">
+      <!-- Location -->
+      <div class="grid grid-cols-2 gap-2">
+        <input 
+          type="text" 
+          name="city" 
+          placeholder="City" 
+          class="input input-bordered input-sm"
+          value={currentFilters.city || ''}
+          autocomplete="address-level2"
+        />
+        <input 
+          type="text" 
+          name="state" 
+          placeholder="State" 
+          class="input input-bordered input-sm"
+          value={currentFilters.state || ''}
+          autocomplete="address-level1"
+        />
+      </div>
+      
+      <!-- Rating and toggles -->
+      <div class="space-y-3">
+        <select name="rating_min" class="select select-bordered select-sm w-full" aria-label="Minimum rating">
+          <option value="">Any Rating</option>
+          <option value="3" selected={currentFilters.rating_min === 3}>3+ Stars</option>
+          <option value="4" selected={currentFilters.rating_min === 4}>4+ Stars</option>
+          <option value="4.5" selected={currentFilters.rating_min === 4.5}>4.5+ Stars</option>
+        </select>
+        
+        <div class="flex gap-4">
+          <label class="label cursor-pointer gap-2 p-0">
+            <input 
+              type="checkbox" 
+              name="featured" 
+              value="true" 
+              class="checkbox checkbox-sm"
+              checked={currentFilters.featured_only}
+            />
+            <span class="label-text">Featured Only</span>
+          </label>
+          
+          <label class="label cursor-pointer gap-2 p-0">
+            <input 
+              type="checkbox" 
+              name="verified" 
+              value="true" 
+              class="checkbox checkbox-sm"
+              checked={currentFilters.verified_only}
+            />
+            <span class="label-text">Verified Only</span>
+          </label>
+        </div>
+      </div>
+      
+      <!-- Mobile action buttons -->
+      <div class="flex gap-2">
+        <button type="submit" class="btn btn-primary btn-sm flex-1">Apply Filters</button>
+        <a href="/businesses" class="btn btn-outline btn-sm">Clear</a>
+      </div>
+    </div>
   </form>
 </div>
 
 <script>
-  // Handle form submission with proper URL encoding
-  document.querySelector('form')?.addEventListener('submit', function(e) {
-    e.preventDefault();
+  // Enhanced form handling with debouncing and performance optimizations
+  document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('search-form');
+    const searchInput = form?.querySelector('input[name="query"]');
+    let searchTimeout;
     
-    const formData = new FormData(this as HTMLFormElement);
-    const params = new URLSearchParams();
+    // Debounced search for better performance
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          // Auto-submit after 500ms of no typing (optional)
+          // form.submit();
+        }, 500);
+      });
+    }
     
-    // Handle regular form fields
-    for (const [key, value] of formData.entries()) {
-      if (value && value !== '') {
-        if (key === 'categories' || key === 'amenities' || key === 'regions') {
-          // Handle multiple checkbox values
-          const existing = params.get(key);
-          if (existing) {
-            params.set(key, existing + ',' + value);
+    // Handle form submission with proper URL encoding
+    form?.addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const formData = new FormData(this);
+      const params = new URLSearchParams();
+      
+      // Handle regular form fields
+      for (const [key, value] of formData.entries()) {
+        if (value && value !== '') {
+          if (key === 'categories' || key === 'amenities' || key === 'regions') {
+            // Handle multiple checkbox values
+            const existing = params.get(key);
+            if (existing) {
+              params.set(key, existing + ',' + value);
+            } else {
+              params.set(key, value.toString());
+            }
           } else {
             params.set(key, value.toString());
           }
-        } else {
-          params.set(key, value.toString());
         }
       }
+      
+      // Show loading state
+      const submitBtn = this.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<span class="loading loading-spinner loading-sm mr-2"></span>Searching...';
+        submitBtn.disabled = true;
+        
+        // Restore button after navigation
+        setTimeout(() => {
+          submitBtn.innerHTML = originalText;
+          submitBtn.disabled = false;
+        }, 2000);
+      }
+      
+      // Navigate to the filtered results
+      window.location.href = '/businesses?' + params.toString();
+    });
+    
+    // Mobile filter toggle enhancement
+    const filterToggle = document.querySelector('button[aria-controls="mobile-filters"]');
+    const mobileFilters = document.getElementById('mobile-filters');
+    
+    if (filterToggle && mobileFilters) {
+      filterToggle.addEventListener('click', function() {
+        const isExpanded = this.getAttribute('aria-expanded') === 'true';
+        this.setAttribute('aria-expanded', (!isExpanded).toString());
+        mobileFilters.classList.toggle('hidden');
+        
+        // Update button text
+        const text = isExpanded ? 'Show Filters' : 'Hide Filters';
+        this.setAttribute('aria-label', text);
+      });
     }
     
-    // Navigate to the filtered results
-    window.location.href = '/businesses?' + params.toString();
+    // Keyboard navigation for dropdowns
+    document.querySelectorAll('.dropdown').forEach(dropdown => {
+      const trigger = dropdown.querySelector('[role="button"]');
+      const menu = dropdown.querySelector('.dropdown-content');
+      
+      if (trigger && menu) {
+        trigger.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            this.click();
+          }
+        });
+      }
+    });
+    
+    // Auto-save form state to localStorage
+    const saveFormState = () => {
+      const formData = new FormData(form);
+      const state = {};
+      for (const [key, value] of formData.entries()) {
+        state[key] = value;
+      }
+      localStorage.setItem('searchFormState', JSON.stringify(state));
+    };
+    
+    // Restore form state from localStorage
+    const restoreFormState = () => {
+      try {
+        const savedState = localStorage.getItem('searchFormState');
+        if (savedState) {
+          const state = JSON.parse(savedState);
+          Object.entries(state).forEach(([key, value]) => {
+            const input = form.querySelector(`[name="${key}"]`);
+            if (input) {
+              if (input.type === 'checkbox') {
+                input.checked = value === 'true';
+              } else {
+                input.value = value;
+              }
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Failed to restore form state:', error);
+      }
+    };
+    
+    // Save state on form changes
+    form?.addEventListener('change', saveFormState);
+    
+    // Restore state on page load (optional)
+    // restoreFormState();
   });
 </script>
+
+<style>
+  /* Enhanced mobile-first responsive design */
+  @media (max-width: 640px) {
+    .dropdown-content {
+      width: calc(100vw - 2rem);
+      max-width: 320px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+  }
+  
+  /* Improved focus styles */
+  .input:focus,
+  .select:focus,
+  .checkbox:focus {
+    outline: 2px solid hsl(var(--p));
+    outline-offset: 2px;
+  }
+  
+  /* Loading state styles */
+  .btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  
+  /* Smooth transitions */
+  .dropdown-content {
+    transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+  }
+  
+  /* High contrast mode support */
+  @media (prefers-contrast: high) {
+    .input,
+    .select,
+    .btn {
+      border-width: 2px;
+    }
+  }
+  
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      transition: none !important;
+    }
+  }
+</style>

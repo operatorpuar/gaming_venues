@@ -1,9 +1,9 @@
-import { db, Business, Category, Amenity, Region, BusinessCategory, BusinessAmenity, BusinessRegion } from 'astro:db';
+import { db, businesses, categories, amenities, regions, business_categories, business_amenities, business_regions } from 'astro:db';
 
 // https://astro.build/db/seed
 export default async function seed() {
   // Sample categories
-  await db.insert(Category).values([
+  await db.insert(categories).values([
     { id: 1, name: 'Casino', slug: 'casino', is_active: true },
     { id: 2, name: 'Sports Betting', slug: 'sports-betting', is_active: true },
     { id: 3, name: 'Poker Room', slug: 'poker-room', is_active: true },
@@ -11,7 +11,7 @@ export default async function seed() {
   ]);
 
   // Sample amenities
-  await db.insert(Amenity).values([
+  await db.insert(amenities).values([
     { id: 1, name: 'Parking', slug: 'parking', category: 'Facilities', is_active: true },
     { id: 2, name: 'Restaurant', slug: 'restaurant', category: 'Dining', is_active: true },
     { id: 3, name: 'Bar', slug: 'bar', category: 'Dining', is_active: true },
@@ -20,14 +20,14 @@ export default async function seed() {
   ]);
 
   // Sample regions
-  await db.insert(Region).values([
-    { id: 1, name: 'Las Vegas Strip', slug: 'las-vegas-strip', state: 'Nevada', is_active: true },
-    { id: 2, name: 'Downtown Las Vegas', slug: 'downtown-las-vegas', state: 'Nevada', is_active: true },
-    { id: 3, name: 'Atlantic City', slug: 'atlantic-city', state: 'New Jersey', is_active: true }
+  await db.insert(regions).values([
+    { id: 1, name: 'Las Vegas Strip', slug: 'las-vegas-strip', state: 'Nevada', country: 'USA' },
+    { id: 2, name: 'Downtown Las Vegas', slug: 'downtown-las-vegas', state: 'Nevada', country: 'USA' },
+    { id: 3, name: 'Atlantic City', slug: 'atlantic-city', state: 'New Jersey', country: 'USA' }
   ]);
 
   // Sample businesses
-  await db.insert(Business).values([
+  await db.insert(businesses).values([
     {
       id: 1,
       cid: 'sample-cid-1',
@@ -58,13 +58,13 @@ export default async function seed() {
   ]);
 
   // Sample business-category relationships
-  await db.insert(BusinessCategory).values([
+  await db.insert(business_categories).values([
     { business_id: 1, category_id: 1 }, // Sample Casino -> Casino
     { business_id: 1, category_id: 2 }  // Sample Casino -> Sports Betting
   ]);
 
   // Sample business-amenity relationships
-  await db.insert(BusinessAmenity).values([
+  await db.insert(business_amenities).values([
     { business_id: 1, amenity_id: 1 }, // Sample Casino -> Parking
     { business_id: 1, amenity_id: 2 }, // Sample Casino -> Restaurant
     { business_id: 1, amenity_id: 3 }, // Sample Casino -> Bar
@@ -72,7 +72,7 @@ export default async function seed() {
   ]);
 
   // Sample business-region relationships
-  await db.insert(BusinessRegion).values([
+  await db.insert(business_regions).values([
     { business_id: 1, region_id: 1 } // Sample Casino -> Las Vegas Strip
   ]);
 }

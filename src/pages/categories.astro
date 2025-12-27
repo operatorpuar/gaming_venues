@@ -1,10 +1,25 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Pagination from '../components/Pagination.astro';
 import { databaseService } from '../lib/database';
 import { generateBreadcrumbStructuredData } from '../lib/seo';
 
-// Fetch categories with business counts
-const categoriesWithCounts = await databaseService.getCategoriesWithCounts();
+// Get query parameters for pagination
+const url = new URL(Astro.request.url);
+const searchParams = url.searchParams;
+
+// Parse pagination parameters
+const page = parseInt(searchParams.get('page') || '1', 10);
+const limit = 20; // Number of categories per page
+const offset = (page - 1) * limit;
+
+// Fetch all categories with business counts first to get total count
+const allCategoriesWithCounts = await databaseService.getCategoriesWithCounts();
+const totalCount = allCategoriesWithCounts.length;
+const totalPages = Math.ceil(totalCount / limit);
+
+// Get paginated categories
+const categoriesWithCounts = allCategoriesWithCounts.slice(offset, offset + limit);
 
 // Generate breadcrumb structured data
 const breadcrumbs = [
@@ -16,7 +31,7 @@ const breadcrumbStructuredData = generateBreadcrumbStructuredData(breadcrumbs);
 
 // SEO metadata
 const title = 'Gaming Venue Categories - Directory';
-const description = `Browse gaming venues by category. Discover ${categoriesWithCounts.length} different types of gambling establishments and gaming venues.`;
+const description = `Browse gaming venues by category. Discover ${totalCount} different types of gambling establishments and gaming venues.`;
 const canonical = '/categories';
 
 const structuredData = {
@@ -28,8 +43,8 @@ const structuredData = {
   "breadcrumb": breadcrumbStructuredData,
   "mainEntity": {
     "@type": "ItemList",
-    "numberOfItems": categoriesWithCounts.length,
-    "itemListElement": categoriesWithCounts.map((category, index) => ({
+    "numberOfItems": totalCount,
+    "itemListElement": allCategoriesWithCounts.map((category, index) => ({
       "@type": "ListItem",
       "position": index + 1,
       "name": category.name,
@@ -64,13 +79,18 @@ const structuredData = {
           <div class="stats shadow">
             <div class="stat">
               <div class="stat-title">Total Categories</div>
-              <div class="stat-value text-primary">{categoriesWithCounts.length}</div>
+              <div class="stat-value text-primary">{totalCount}</div>
               <div class="stat-desc">Active venue types</div>
             </div>
             <div class="stat">
               <div class="stat-title">Total Venues</div>
-              <div class="stat-value">{categoriesWithCounts.reduce((sum, cat) => sum + cat.business_count, 0).toLocaleString()}</div>
+              <div class="stat-value">{allCategoriesWithCounts.reduce((sum, cat) => sum + cat.business_count, 0).toLocaleString()}</div>
               <div class="stat-desc">Across all categories</div>
+            </div>
+            <div class="stat">
+              <div class="stat-title">Current Page</div>
+              <div class="stat-value">{page}</div>
+              <div class="stat-desc">of {totalPages}</div>
             </div>
           </div>
         </div>
@@ -90,39 +110,52 @@ const structuredData = {
     <!-- Categories Grid -->
     <div class="container mx-auto px-4 py-8">
       {categoriesWithCounts.length > 0 ? (
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {categoriesWithCounts.map(category => (
-            <div class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow duration-300">
-              <div class="card-body">
-                <h2 class="card-title text-xl font-bold">
-                  {category.name}
-                </h2>
-                
-                <div class="flex items-center gap-2 mb-4">
-                  <div class="badge badge-primary badge-lg">
-                    {category.business_count.toLocaleString()} venues
+        <>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {categoriesWithCounts.map(category => (
+              <div class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow duration-300">
+                <div class="card-body">
+                  <h2 class="card-title text-xl font-bold">
+                    {category.name}
+                  </h2>
+                  
+                  <div class="flex items-center gap-2 mb-4">
+                    <div class="badge badge-primary badge-lg">
+                      {category.business_count.toLocaleString()} venues
+                    </div>
+                  </div>
+                  
+                  <p class="text-base-content/70 mb-4">
+                    Explore {category.business_count} {category.name.toLowerCase()} venues and discover the best gambling establishments in this category.
+                  </p>
+                  
+                  <div class="card-actions justify-end">
+                    <a 
+                      href={`/category/${category.slug}`} 
+                      class="btn btn-primary"
+                    >
+                      Browse {category.name}
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </a>
                   </div>
                 </div>
-                
-                <p class="text-base-content/70 mb-4">
-                  Explore {category.business_count} {category.name.toLowerCase()} venues and discover the best gambling establishments in this category.
-                </p>
-                
-                <div class="card-actions justify-end">
-                  <a 
-                    href={`/category/${category.slug}`} 
-                    class="btn btn-primary"
-                  >
-                    Browse {category.name}
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </a>
-                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          
+          <!-- Pagination -->
+          <Pagination 
+            currentPage={page}
+            totalPages={totalPages}
+            baseUrl="/categories"
+            searchParams={new URLSearchParams()}
+            totalItems={totalCount}
+            itemsPerPage={limit}
+          />
+        </>
+        </>
       ) : (
         <!-- No categories -->
         <div class="text-center py-12">

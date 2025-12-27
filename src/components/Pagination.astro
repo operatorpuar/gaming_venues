@@ -4,9 +4,15 @@ interface Props {
   totalPages: number;
   baseUrl: string;
   searchParams?: URLSearchParams;
+  totalItems?: number;
+  itemsPerPage?: number;
 }
 
-const { currentPage, totalPages, baseUrl, searchParams } = Astro.props;
+const { currentPage, totalPages, baseUrl, searchParams, totalItems, itemsPerPage } = Astro.props;
+
+// Validate props
+const validCurrentPage = Math.max(1, Math.min(currentPage, totalPages));
+const validTotalPages = Math.max(1, totalPages);
 
 // Generate pagination URLs
 function generatePageUrl(page: number): string {
@@ -15,9 +21,13 @@ function generatePageUrl(page: number): string {
   return `${baseUrl}?${params.toString()}`;
 }
 
-// Calculate visible page numbers
+// Calculate visible page numbers with improved logic
 function getVisiblePages(current: number, total: number): (number | string)[] {
   const pages: (number | string)[] = [];
+  
+  if (total <= 1) {
+    return [1];
+  }
   
   if (total <= 7) {
     // Show all pages if total is 7 or less
@@ -28,6 +38,7 @@ function getVisiblePages(current: number, total: number): (number | string)[] {
     // Always show first page
     pages.push(1);
     
+    // Add ellipsis if needed
     if (current > 4) {
       pages.push('...');
     }
@@ -40,12 +51,13 @@ function getVisiblePages(current: number, total: number): (number | string)[] {
       pages.push(i);
     }
     
+    // Add ellipsis if needed
     if (current < total - 3) {
       pages.push('...');
     }
     
-    // Always show last page
-    if (total > 1) {
+    // Always show last page if it's not already included
+    if (total > 1 && !pages.includes(total)) {
       pages.push(total);
     }
   }
@@ -53,22 +65,26 @@ function getVisiblePages(current: number, total: number): (number | string)[] {
   return pages;
 }
 
-const visiblePages = getVisiblePages(currentPage, totalPages);
+const visiblePages = getVisiblePages(validCurrentPage, validTotalPages);
+
+// Calculate item range for display
+const startItem = totalItems ? Math.min((validCurrentPage - 1) * (itemsPerPage || 12) + 1, totalItems) : null;
+const endItem = totalItems ? Math.min(validCurrentPage * (itemsPerPage || 12), totalItems) : null;
 ---
 
-{totalPages > 1 && (
+{validTotalPages > 1 && (
   <div class="flex justify-center mt-8">
     <div class="join">
       <!-- Previous button -->
-      {currentPage > 1 ? (
-        <a href={generatePageUrl(currentPage - 1)} class="join-item btn btn-outline">
+      {validCurrentPage > 1 ? (
+        <a href={generatePageUrl(validCurrentPage - 1)} class="join-item btn btn-outline" aria-label="Previous page">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
           </svg>
           Previous
         </a>
       ) : (
-        <button class="join-item btn btn-outline btn-disabled">
+        <button class="join-item btn btn-outline btn-disabled" aria-label="Previous page (disabled)">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
           </svg>
@@ -79,31 +95,31 @@ const visiblePages = getVisiblePages(currentPage, totalPages);
       <!-- Page numbers -->
       {visiblePages.map(page => {
         if (page === '...') {
-          return <span class="join-item btn btn-outline btn-disabled">...</span>;
+          return <span class="join-item btn btn-outline btn-disabled" aria-label="More pages">...</span>;
         }
         
         const pageNum = page as number;
-        if (pageNum === currentPage) {
-          return <span class="join-item btn btn-primary">{pageNum}</span>;
+        if (pageNum === validCurrentPage) {
+          return <span class="join-item btn btn-primary" aria-current="page">{pageNum}</span>;
         }
         
         return (
-          <a href={generatePageUrl(pageNum)} class="join-item btn btn-outline">
+          <a href={generatePageUrl(pageNum)} class="join-item btn btn-outline" aria-label={`Go to page ${pageNum}`}>
             {pageNum}
           </a>
         );
       })}
       
       <!-- Next button -->
-      {currentPage < totalPages ? (
-        <a href={generatePageUrl(currentPage + 1)} class="join-item btn btn-outline">
+      {validCurrentPage < validTotalPages ? (
+        <a href={generatePageUrl(validCurrentPage + 1)} class="join-item btn btn-outline" aria-label="Next page">
           Next
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
           </svg>
         </a>
       ) : (
-        <button class="join-item btn btn-outline btn-disabled">
+        <button class="join-item btn btn-outline btn-disabled" aria-label="Next page (disabled)">
           Next
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -114,9 +130,16 @@ const visiblePages = getVisiblePages(currentPage, totalPages);
   </div>
 )}
 
-<!-- Page info -->
-{totalPages > 1 && (
-  <div class="text-center mt-4 text-sm text-base-content/70">
-    Page {currentPage} of {totalPages}
+<!-- Page info with improved display -->
+{validTotalPages > 1 && (
+  <div class="text-center mt-4 space-y-1">
+    <div class="text-sm text-base-content/70">
+      Page {validCurrentPage} of {validTotalPages}
+    </div>
+    {totalItems && startItem && endItem && (
+      <div class="text-xs text-base-content/60">
+        Showing {startItem.toLocaleString()}-{endItem.toLocaleString()} of {totalItems.toLocaleString()} items
+      </div>
+    )}
   </div>
 )}

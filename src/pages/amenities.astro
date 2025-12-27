@@ -1,10 +1,25 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Pagination from '../components/Pagination.astro';
 import { databaseService } from '../lib/database';
 import { generateBreadcrumbStructuredData } from '../lib/seo';
 
-// Fetch amenities with business counts
-const amenitiesWithCounts = await databaseService.getAmenitiesWithCounts();
+// Get query parameters for pagination
+const url = new URL(Astro.request.url);
+const searchParams = url.searchParams;
+
+// Parse pagination parameters
+const page = parseInt(searchParams.get('page') || '1', 10);
+const limit = 24; // Number of amenities per page
+const offset = (page - 1) * limit;
+
+// Fetch all amenities with business counts first to get total count
+const allAmenitiesWithCounts = await databaseService.getAmenitiesWithCounts();
+const totalCount = allAmenitiesWithCounts.length;
+const totalPages = Math.ceil(totalCount / limit);
+
+// Get paginated amenities
+const amenitiesWithCounts = allAmenitiesWithCounts.slice(offset, offset + limit);
 
 // Group amenities by category
 const amenitiesByCategory = amenitiesWithCounts.reduce((acc, amenity) => {
@@ -19,6 +34,12 @@ const amenitiesByCategory = amenitiesWithCounts.reduce((acc, amenity) => {
 // Sort categories alphabetically
 const sortedCategories = Object.keys(amenitiesByCategory).sort();
 
+// Calculate total unique categories for stats
+const totalCategories = Object.keys(allAmenitiesWithCounts.reduce((acc, amenity) => {
+  acc[amenity.category || 'Other'] = true;
+  return acc;
+}, {} as Record<string, boolean>)).length;
+
 // Generate breadcrumb structured data
 const breadcrumbs = [
   { name: 'Home', url: '/' },
@@ -29,7 +50,7 @@ const breadcrumbStructuredData = generateBreadcrumbStructuredData(breadcrumbs);
 
 // SEO metadata
 const title = 'Gaming Venue Amenities - Directory';
-const description = `Browse gaming venues by amenities and services. Discover ${amenitiesWithCounts.length} different amenities offered by gambling establishments.`;
+const description = `Browse gaming venues by amenities and services. Discover ${totalCount} different amenities offered by gambling establishments.`;
 const canonical = '/amenities';
 
 const structuredData = {
@@ -41,8 +62,8 @@ const structuredData = {
   "breadcrumb": breadcrumbStructuredData,
   "mainEntity": {
     "@type": "ItemList",
-    "numberOfItems": amenitiesWithCounts.length,
-    "itemListElement": amenitiesWithCounts.map((amenity, index) => ({
+    "numberOfItems": totalCount,
+    "itemListElement": allAmenitiesWithCounts.map((amenity, index) => ({
       "@type": "ListItem",
       "position": index + 1,
       "name": amenity.name,
@@ -77,18 +98,18 @@ const structuredData = {
           <div class="stats shadow">
             <div class="stat">
               <div class="stat-title">Total Amenities</div>
-              <div class="stat-value text-primary">{amenitiesWithCounts.length}</div>
+              <div class="stat-value text-primary">{totalCount}</div>
               <div class="stat-desc">Available services</div>
             </div>
             <div class="stat">
               <div class="stat-title">Categories</div>
-              <div class="stat-value">{sortedCategories.length}</div>
+              <div class="stat-value">{totalCategories}</div>
               <div class="stat-desc">Amenity groups</div>
             </div>
             <div class="stat">
-              <div class="stat-title">Total Venues</div>
-              <div class="stat-value">{amenitiesWithCounts.reduce((sum, amenity) => sum + amenity.business_count, 0).toLocaleString()}</div>
-              <div class="stat-desc">Offering amenities</div>
+              <div class="stat-title">Current Page</div>
+              <div class="stat-value">{page}</div>
+              <div class="stat-desc">of {totalPages}</div>
             </div>
           </div>
         </div>
@@ -108,59 +129,72 @@ const structuredData = {
     <!-- Amenities by Category -->
     <div class="container mx-auto px-4 py-8">
       {sortedCategories.length > 0 ? (
-        <div class="space-y-12">
-          {sortedCategories.map(categoryName => (
-            <div class="space-y-6">
-              <!-- Category Header -->
-              <div class="text-center">
-                <h2 class="text-2xl font-bold text-base-content mb-2">
-                  {categoryName}
-                </h2>
-                <p class="text-base-content/70">
-                  {amenitiesByCategory[categoryName].length} amenities in this category
-                </p>
-              </div>
-              
-              <!-- Amenities Grid -->
-              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {amenitiesByCategory[categoryName].map(amenity => (
-                  <div class="card bg-base-100 shadow-lg hover:shadow-xl transition-shadow duration-300">
-                    <div class="card-body p-4">
-                      <h3 class="card-title text-lg font-semibold">
-                        {amenity.name}
-                      </h3>
-                      
-                      <div class="flex items-center gap-2 mb-3">
-                        <div class="badge badge-secondary">
-                          {amenity.business_count.toLocaleString()} venues
+        <>
+          <div class="space-y-12">
+            {sortedCategories.map(categoryName => (
+              <div class="space-y-6">
+                <!-- Category Header -->
+                <div class="text-center">
+                  <h2 class="text-2xl font-bold text-base-content mb-2">
+                    {categoryName}
+                  </h2>
+                  <p class="text-base-content/70">
+                    {amenitiesByCategory[categoryName].length} amenities in this category
+                  </p>
+                </div>
+                
+                <!-- Amenities Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {amenitiesByCategory[categoryName].map(amenity => (
+                    <div class="card bg-base-100 shadow-lg hover:shadow-xl transition-shadow duration-300">
+                      <div class="card-body p-4">
+                        <h3 class="card-title text-lg font-semibold">
+                          {amenity.name}
+                        </h3>
+                        
+                        <div class="flex items-center gap-2 mb-3">
+                          <div class="badge badge-secondary">
+                            {amenity.business_count.toLocaleString()} venues
+                          </div>
+                          <div class="badge badge-outline badge-sm">
+                            {categoryName}
+                          </div>
                         </div>
-                        <div class="badge badge-outline badge-sm">
-                          {categoryName}
+                        
+                        <p class="text-sm text-base-content/70 mb-4">
+                          Find venues offering {amenity.name.toLowerCase()} services and amenities.
+                        </p>
+                        
+                        <div class="card-actions justify-end">
+                          <a 
+                            href={`/amenity/${amenity.slug}`} 
+                            class="btn btn-primary btn-sm"
+                          >
+                            View Venues
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                          </a>
                         </div>
-                      </div>
-                      
-                      <p class="text-sm text-base-content/70 mb-4">
-                        Find venues offering {amenity.name.toLowerCase()} services and amenities.
-                      </p>
-                      
-                      <div class="card-actions justify-end">
-                        <a 
-                          href={`/amenity/${amenity.slug}`} 
-                          class="btn btn-primary btn-sm"
-                        >
-                          View Venues
-                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                          </svg>
-                        </a>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          
+          <!-- Pagination -->
+          <Pagination 
+            currentPage={page}
+            totalPages={totalPages}
+            baseUrl="/amenities"
+            searchParams={new URLSearchParams()}
+            totalItems={totalCount}
+            itemsPerPage={limit}
+          />
+        </>
+        </>
       ) : (
         <!-- No amenities -->
         <div class="text-center py-12">

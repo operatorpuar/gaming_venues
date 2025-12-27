@@ -142,6 +142,8 @@ const combinedStructuredData = {
             totalPages={totalPages}
             baseUrl={`/amenity/${amenity.slug}`}
             searchParams={new URLSearchParams()}
+            totalItems={totalCount}
+            itemsPerPage={limit}
           />
         </>
       ) : (

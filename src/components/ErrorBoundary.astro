@@ -1,0 +1,175 @@
+---
+interface Props {
+  title?: string;
+  message?: string;
+  showRetry?: boolean;
+  showHome?: boolean;
+  class?: string;
+}
+
+const { 
+  title = 'Something went wrong',
+  message = 'We encountered an error while loading this content. Please try again.',
+  showRetry = true,
+  showHome = true,
+  class: className = ''
+} = Astro.props;
+---
+
+<div class={`error-boundary ${className}`} role="alert">
+  <div class="max-w-md mx-auto text-center">
+    <!-- Error Icon -->
+    <div class="mb-6">
+      <svg 
+        xmlns="http://www.w3.org/2000/svg" 
+        class="h-16 w-16 mx-auto text-error" 
+        fill="none" 
+        viewBox="0 0 24 24" 
+        stroke="currentColor"
+        aria-hidden="true"
+      >
+        <path 
+          stroke-linecap="round" 
+          stroke-linejoin="round" 
+          stroke-width="2" 
+          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" 
+        />
+      </svg>
+    </div>
+    
+    <!-- Error Title -->
+    <h2 class="text-2xl font-bold text-base-content mb-4">
+      {title}
+    </h2>
+    
+    <!-- Error Message -->
+    <p class="text-base-content/70 mb-6 leading-relaxed">
+      {message}
+    </p>
+    
+    <!-- Action Buttons -->
+    <div class="flex flex-col sm:flex-row gap-3 justify-center">
+      {showRetry && (
+        <button 
+          onclick="window.location.reload()" 
+          class="btn btn-primary"
+          aria-label="Retry loading the page"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Try Again
+        </button>
+      )}
+      
+      {showHome && (
+        <a href="/" class="btn btn-outline">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+          Go Home
+        </a>
+      )}
+    </div>
+    
+    <!-- Additional Help -->
+    <div class="mt-8 pt-6 border-t border-base-300">
+      <p class="text-sm text-base-content/60">
+        If this problem persists, please try:
+      </p>
+      <ul class="text-sm text-base-content/60 mt-2 space-y-1">
+        <li>• Refreshing your browser</li>
+        <li>• Checking your internet connection</li>
+        <li>• Clearing your browser cache</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<style>
+  .error-boundary {
+    min-height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background-color: hsl(var(--b1));
+    border-radius: 0.5rem;
+    border: 1px solid hsl(var(--bc) / 0.1);
+  }
+  
+  /* Full page error styles */
+  .error-boundary.full-page {
+    min-height: 100vh;
+    background-color: hsl(var(--b2));
+    border: none;
+    border-radius: 0;
+  }
+  
+  /* Compact error styles */
+  .error-boundary.compact {
+    min-height: 200px;
+    padding: 1rem;
+  }
+  
+  .error-boundary.compact h2 {
+    font-size: 1.25rem;
+    margin-bottom: 0.75rem;
+  }
+  
+  .error-boundary.compact svg {
+    height: 3rem;
+    width: 3rem;
+  }
+</style>
+
+<script>
+  // Enhanced error handling with retry logic
+  document.addEventListener('DOMContentLoaded', function() {
+    // Track retry attempts
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    // Handle retry button clicks
+    document.querySelectorAll('.error-boundary button[onclick*="reload"]').forEach(button => {
+      button.addEventListener('click', function(e) {
+        e.preventDefault();
+        
+        retryCount++;
+        
+        if (retryCount >= maxRetries) {
+          // After max retries, suggest going home
+          if (confirm('Multiple retry attempts failed. Would you like to go to the homepage instead?')) {
+            window.location.href = '/';
+          }
+          return;
+        }
+        
+        // Show loading state
+        this.innerHTML = '<span class="loading loading-spinner loading-sm mr-2"></span>Retrying...';
+        this.disabled = true;
+        
+        // Reload after a short delay
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      });
+    });
+    
+    // Global error handler for unhandled errors
+    window.addEventListener('error', function(event) {
+      console.error('Global error caught:', event.error);
+      
+      // You could send error reports to a logging service here
+      // logErrorToService(event.error);
+    });
+    
+    // Handle unhandled promise rejections
+    window.addEventListener('unhandledrejection', function(event) {
+      console.error('Unhandled promise rejection:', event.reason);
+      
+      // You could send error reports to a logging service here
+      // logErrorToService(event.reason);
+    });
+  });
+</script>

@@ -79,7 +79,7 @@ const seoData = generateSearchSEO(searchQuery, filters, totalCount);
   <main class="min-h-screen bg-base-200">
     <!-- Compact Header Section -->
     <div class="bg-base-100 shadow-sm">
-      <div class="container mx-auto px-4 py-4">
+      <div class="container-responsive py-4">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <!-- Title and description -->
           <div class="text-center md:text-left">
@@ -110,7 +110,7 @@ const seoData = generateSearchSEO(searchQuery, filters, totalCount);
     </div>
 
     <!-- Search and Filter Section -->
-    <div class="container mx-auto px-4 py-4">
+    <div class="container-responsive py-4">
       <SearchAndFilter 
         categories={categories}
         amenities={amenities}
@@ -130,7 +130,7 @@ const seoData = generateSearchSEO(searchQuery, filters, totalCount);
     </div>
 
     <!-- Main Content -->
-    <div class="container mx-auto px-4 py-4">
+    <div class="container-responsive py-4">
       <!-- Compact Filter Summary -->
       {(filters.featured_only || filters.verified_only || filters.city || filters.state || filters.categories?.length || filters.amenities?.length || filters.regions?.length || searchQuery) && (
         <div class="mb-4">
@@ -154,9 +154,13 @@ const seoData = generateSearchSEO(searchQuery, filters, totalCount);
       <!-- Business Grid -->
       {businesses.length > 0 ? (
         <>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {businesses.map(business => (
-              <BusinessCard business={business} />
+          <div class="responsive-grid mb-8">
+            {businesses.map((business, index) => (
+              <BusinessCard 
+                business={business} 
+                priority={index < 4}
+                class="h-full"
+              />
             ))}
           </div>
           
@@ -166,6 +170,8 @@ const seoData = generateSearchSEO(searchQuery, filters, totalCount);
             totalPages={totalPages}
             baseUrl="/businesses"
             searchParams={searchParams}
+            totalItems={totalCount}
+            itemsPerPage={limit}
           />
         </>
       ) : (
@@ -199,7 +205,7 @@ const seoData = generateSearchSEO(searchQuery, filters, totalCount);
 
     <!-- Quick Actions -->
     <div class="bg-base-100 mt-12">
-      <div class="container mx-auto px-4 py-8">
+      <div class="container-responsive py-8">
         <div class="text-center mb-6">
           <h2 class="text-2xl font-bold text-base-content">Explore More</h2>
           <p class="text-base-content/70">Find venues by category or location</p>

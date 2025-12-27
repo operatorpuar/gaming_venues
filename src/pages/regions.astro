@@ -1,10 +1,25 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Pagination from '../components/Pagination.astro';
 import { databaseService } from '../lib/database';
 import { generateBreadcrumbStructuredData } from '../lib/seo';
 
-// Fetch states with business and region counts for hierarchical display
-const statesWithCounts = await databaseService.getStatesWithCounts();
+// Get query parameters for pagination
+const url = new URL(Astro.request.url);
+const searchParams = url.searchParams;
+
+// Parse pagination parameters
+const page = parseInt(searchParams.get('page') || '1', 10);
+const limit = 16; // Number of states per page
+const offset = (page - 1) * limit;
+
+// Fetch all states with business and region counts for hierarchical display
+const allStatesWithCounts = await databaseService.getStatesWithCounts();
+const totalCount = allStatesWithCounts.length;
+const totalPages = Math.ceil(totalCount / limit);
+
+// Get paginated states
+const statesWithCounts = allStatesWithCounts.slice(offset, offset + limit);
 
 // Generate breadcrumb structured data
 const breadcrumbs = [
@@ -16,11 +31,11 @@ const breadcrumbStructuredData = generateBreadcrumbStructuredData(breadcrumbs);
 
 // SEO metadata
 const title = 'Gaming Venues by Region - Directory';
-const description = `Browse gaming venues by region and state. Discover gambling establishments across ${statesWithCounts.length} states and territories.`;
+const description = `Browse gaming venues by region and state. Discover gambling establishments across ${totalCount} states and territories.`;
 const canonical = '/regions';
 
-const totalBusinesses = statesWithCounts.reduce((sum, state) => sum + state.business_count, 0);
-const totalRegions = statesWithCounts.reduce((sum, state) => sum + state.region_count, 0);
+const totalBusinesses = allStatesWithCounts.reduce((sum, state) => sum + state.business_count, 0);
+const totalRegions = allStatesWithCounts.reduce((sum, state) => sum + state.region_count, 0);
 
 const structuredData = {
   "@context": "https://schema.org",
@@ -31,8 +46,8 @@ const structuredData = {
   "breadcrumb": breadcrumbStructuredData,
   "mainEntity": {
     "@type": "ItemList",
-    "numberOfItems": statesWithCounts.length,
-    "itemListElement": statesWithCounts.map((state, index) => ({
+    "numberOfItems": totalCount,
+    "itemListElement": allStatesWithCounts.map((state, index) => ({
       "@type": "ListItem",
       "position": index + 1,
       "name": state.state,
@@ -67,7 +82,7 @@ const structuredData = {
           <div class="stats shadow">
             <div class="stat">
               <div class="stat-title">States & Territories</div>
-              <div class="stat-value text-primary">{statesWithCounts.length}</div>
+              <div class="stat-value text-primary">{totalCount}</div>
               <div class="stat-desc">Geographic areas</div>
             </div>
             <div class="stat">
@@ -76,9 +91,9 @@ const structuredData = {
               <div class="stat-desc">Local areas</div>
             </div>
             <div class="stat">
-              <div class="stat-title">Total Venues</div>
-              <div class="stat-value">{totalBusinesses.toLocaleString()}</div>
-              <div class="stat-desc">Across all regions</div>
+              <div class="stat-title">Current Page</div>
+              <div class="stat-value">{page}</div>
+              <div class="stat-desc">of {totalPages}</div>
             </div>
           </div>
         </div>
@@ -98,42 +113,55 @@ const structuredData = {
     <!-- States Grid -->
     <div class="container mx-auto px-4 py-8">
       {statesWithCounts.length > 0 ? (
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {statesWithCounts.map(state => (
-            <div class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow duration-300">
-              <div class="card-body">
-                <h2 class="card-title text-xl font-bold">
-                  {state.state}
-                </h2>
-                
-                <div class="flex flex-wrap gap-2 mb-4">
-                  <div class="badge badge-primary badge-lg">
-                    {state.business_count.toLocaleString()} venues
+        <>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {statesWithCounts.map(state => (
+              <div class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow duration-300">
+                <div class="card-body">
+                  <h2 class="card-title text-xl font-bold">
+                    {state.state}
+                  </h2>
+                  
+                  <div class="flex flex-wrap gap-2 mb-4">
+                    <div class="badge badge-primary badge-lg">
+                      {state.business_count.toLocaleString()} venues
+                    </div>
+                    <div class="badge badge-secondary badge-lg">
+                      {state.region_count.toLocaleString()} regions
+                    </div>
                   </div>
-                  <div class="badge badge-secondary badge-lg">
-                    {state.region_count.toLocaleString()} regions
+                  
+                  <p class="text-base-content/70 mb-4">
+                    Explore {state.business_count} gaming venues across {state.region_count} regions in {state.state}.
+                  </p>
+                  
+                  <div class="card-actions justify-end">
+                    <a 
+                      href={`/state/${state.state.toLowerCase().replace(/\s+/g, '-')}`} 
+                      class="btn btn-primary"
+                    >
+                      Browse {state.state}
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </a>
                   </div>
-                </div>
-                
-                <p class="text-base-content/70 mb-4">
-                  Explore {state.business_count} gaming venues across {state.region_count} regions in {state.state}.
-                </p>
-                
-                <div class="card-actions justify-end">
-                  <a 
-                    href={`/state/${state.state.toLowerCase().replace(/\s+/g, '-')}`} 
-                    class="btn btn-primary"
-                  >
-                    Browse {state.state}
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </a>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          
+          <!-- Pagination -->
+          <Pagination 
+            currentPage={page}
+            totalPages={totalPages}
+            baseUrl="/regions"
+            searchParams={new URLSearchParams()}
+            totalItems={totalCount}
+            itemsPerPage={limit}
+          />
+        </>
+        </>
       ) : (
         <!-- No states -->
         <div class="text-center py-12">

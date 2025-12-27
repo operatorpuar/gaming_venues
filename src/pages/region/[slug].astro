@@ -145,6 +145,8 @@ const combinedStructuredData = {
             totalPages={totalPages}
             baseUrl={`/region/${region.slug}`}
             searchParams={new URLSearchParams()}
+            totalItems={totalCount}
+            itemsPerPage={limit}
           />
         </>
       ) : (

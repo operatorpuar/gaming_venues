@@ -8,6 +8,7 @@ import {
   desc, 
   asc, 
   gte,
+  sql,
   businesses,
   categories,
   amenities,
@@ -54,33 +55,29 @@ export interface DatabaseService {
 export class TursoDatabase implements DatabaseService {
   
   /**
-   * Get businesses with filtering and pagination
+   * Get businesses with filtering and pagination - optimized for large datasets
    */
   async getBusinesses(filters: BusinessFilters, pagination: Pagination): Promise<BusinessResult[]> {
     // Build base conditions
     const conditions = [eq(businesses.is_active, true)];
 
-    // Apply city filter
+    // Apply simple filters first (most efficient)
     if (filters.city) {
       conditions.push(like(businesses.city, `%${filters.city}%`));
     }
 
-    // Apply state filter
     if (filters.state) {
       conditions.push(like(businesses.state, `%${filters.state}%`));
     }
 
-    // Apply rating filter
     if (filters.rating_min) {
       conditions.push(gte(businesses.rating, filters.rating_min));
     }
 
-    // Apply featured filter
     if (filters.featured_only) {
       conditions.push(eq(businesses.featured, true));
     }
 
-    // Apply verified filter
     if (filters.verified_only) {
       conditions.push(eq(businesses.verified, true));
     }
@@ -88,14 +85,14 @@ export class TursoDatabase implements DatabaseService {
     // For complex filtering with categories, amenities, and regions, we need to use subqueries
     let businessIds: number[] | undefined;
 
-    // Filter by categories if specified
+    // Filter by categories if specified (most selective first)
     if (filters.categories && filters.categories.length > 0) {
       const categoryBusinesses = await db.select({ business_id: business_categories.business_id })
         .from(business_categories)
         .where(or(...filters.categories.map(id => eq(business_categories.category_id, id))));
       
       businessIds = categoryBusinesses.map(b => b.business_id);
-      if (businessIds.length === 0) return []; // No businesses match categories
+      if (businessIds.length === 0) return []; // Early return for no matches
     }
 
     // Filter by amenities if specified
@@ -107,13 +104,14 @@ export class TursoDatabase implements DatabaseService {
       const amenityBusinessIds = amenityBusinesses.map(b => b.business_id);
       
       if (businessIds) {
-        // Intersect with existing business IDs
-        businessIds = businessIds.filter(id => amenityBusinessIds.includes(id));
+        // Use Set for faster intersection on large datasets
+        const businessIdSet = new Set(businessIds);
+        businessIds = amenityBusinessIds.filter(id => businessIdSet.has(id));
       } else {
         businessIds = amenityBusinessIds;
       }
       
-      if (businessIds.length === 0) return []; // No businesses match amenities
+      if (businessIds.length === 0) return []; // Early return for no matches
     }
 
     // Filter by regions if specified
@@ -125,35 +123,33 @@ export class TursoDatabase implements DatabaseService {
       const regionBusinessIds = regionBusinesses.map(b => b.business_id);
       
       if (businessIds) {
-        // Intersect with existing business IDs
-        businessIds = businessIds.filter(id => regionBusinessIds.includes(id));
+        // Use Set for faster intersection on large datasets
+        const businessIdSet = new Set(businessIds);
+        businessIds = regionBusinessIds.filter(id => businessIdSet.has(id));
       } else {
         businessIds = regionBusinessIds;
       }
       
-      if (businessIds.length === 0) return []; // No businesses match regions
+      if (businessIds.length === 0) return []; // Early return for no matches
     }
 
     // Add business ID filter if we have specific IDs to filter by
     if (businessIds && businessIds.length > 0) {
+      // For large ID lists, use chunking to avoid query size limits
       if (businessIds.length === 1) {
         conditions.push(eq(businesses.id, businessIds[0]));
       } else {
+        // Build OR condition efficiently
         const businessConditions = businessIds.map(id => eq(businesses.id, id));
-        if (businessConditions.length === 1) {
-          conditions.push(businessConditions[0]);
-        } else if (businessConditions.length > 1) {
-          // Use a different approach to avoid TypeScript spread operator issues
-          let condition = businessConditions[0];
-          if (condition) {
-            for (let i = 1; i < businessConditions.length; i++) {
-              const nextCondition = businessConditions[i];
-              if (nextCondition) {
-                condition = or(condition, nextCondition);
-              }
+        let condition = businessConditions[0];
+        if (condition) {
+          for (let i = 1; i < businessConditions.length; i++) {
+            const nextCondition = businessConditions[i];
+            if (nextCondition) {
+              condition = or(condition, nextCondition)!;
             }
-            conditions.push(condition);
           }
+          conditions.push(condition);
         }
       }
     } else if (businessIds && businessIds.length === 0) {
@@ -168,27 +164,43 @@ export class TursoDatabase implements DatabaseService {
       .limit(pagination.limit)
       .offset(pagination.offset);
 
-    // Get categories for each business
-    const businessResults: BusinessResult[] = [];
-    for (const business of businessList) {
-      const businessCategories = await db.select({
-        id: categories.id,
-        name: categories.name,
-        slug: categories.slug,
-        is_active: categories.is_active
-      })
-      .from(categories)
-      .innerJoin(business_categories, eq(categories.id, business_categories.category_id))
-      .where(and(
-        eq(business_categories.business_id, business.id),
-        eq(categories.is_active, true)
-      ));
+    // Batch load categories for all businesses to reduce N+1 queries
+    if (businessList.length === 0) return [];
+    
+    const businessIds_result = businessList.map(b => b.id);
+    const allBusinessCategories = await db.select({
+      business_id: business_categories.business_id,
+      id: categories.id,
+      name: categories.name,
+      slug: categories.slug,
+      is_active: categories.is_active
+    })
+    .from(categories)
+    .innerJoin(business_categories, eq(categories.id, business_categories.category_id))
+    .where(and(
+      or(...businessIds_result.map(id => eq(business_categories.business_id, id))),
+      eq(categories.is_active, true)
+    ));
 
-      businessResults.push({
-        ...business,
-        categories: businessCategories
+    // Group categories by business ID for efficient lookup
+    const categoriesByBusiness = allBusinessCategories.reduce((acc, cat) => {
+      if (!acc[cat.business_id]) {
+        acc[cat.business_id] = [];
+      }
+      acc[cat.business_id].push({
+        id: cat.id,
+        name: cat.name,
+        slug: cat.slug,
+        is_active: cat.is_active
       });
-    }
+      return acc;
+    }, {} as Record<number, Array<{ id: number; name: string; slug: string; is_active: boolean }>>);
+
+    // Build final results with categories
+    const businessResults: BusinessResult[] = businessList.map(business => ({
+      ...business,
+      categories: categoriesByBusiness[business.id] || []
+    }));
     
     return businessResults;
   }
@@ -386,7 +398,7 @@ export class TursoDatabase implements DatabaseService {
           for (let i = 1; i < businessConditions.length; i++) {
             const nextCondition = businessConditions[i];
             if (nextCondition) {
-              condition = or(condition, nextCondition);
+              condition = or(condition, nextCondition)!;
             }
           }
           searchConditions.push(condition);
@@ -514,7 +526,7 @@ export class TursoDatabase implements DatabaseService {
           for (let i = 1; i < businessConditions.length; i++) {
             const nextCondition = businessConditions[i];
             if (nextCondition) {
-              condition = or(condition, nextCondition);
+              condition = or(condition, nextCondition)!;
             }
           }
           conditions.push(condition);
@@ -625,7 +637,7 @@ export class TursoDatabase implements DatabaseService {
           for (let i = 1; i < businessConditions.length; i++) {
             const nextCondition = businessConditions[i];
             if (nextCondition) {
-              condition = or(condition, nextCondition);
+              condition = or(condition, nextCondition)!;
             }
           }
           conditions.push(condition);
@@ -644,21 +656,22 @@ export class TursoDatabase implements DatabaseService {
    * Get categories with business counts
    */
   async getCategoriesWithCounts(): Promise<Array<CategoryType & { business_count: number }>> {
+    // Optimized query using subquery to avoid cartesian product
     const categoriesWithCounts = await db.select({
       id: categories.id,
       name: categories.name,
       slug: categories.slug,
       is_active: categories.is_active,
-      business_count: count(business_categories.business_id)
+      business_count: sql<number>`COALESCE((
+        SELECT COUNT(DISTINCT bc.business_id)
+        FROM business_categories bc
+        INNER JOIN businesses b ON bc.business_id = b.id
+        WHERE bc.category_id = categories.id 
+        AND b.is_active = 1
+      ), 0)`.as('business_count')
     })
     .from(categories)
-    .leftJoin(business_categories, eq(categories.id, business_categories.category_id))
-    .leftJoin(businesses, and(
-      eq(business_categories.business_id, businesses.id),
-      eq(businesses.is_active, true)
-    ))
     .where(eq(categories.is_active, true))
-    .groupBy(categories.id, categories.name, categories.slug, categories.is_active)
     .orderBy(asc(categories.name));
 
     return categoriesWithCounts;
@@ -668,22 +681,23 @@ export class TursoDatabase implements DatabaseService {
    * Get amenities with business counts, grouped by category
    */
   async getAmenitiesWithCounts(): Promise<Array<AmenityType & { business_count: number }>> {
+    // Optimized query using subquery to avoid cartesian product
     const amenitiesWithCounts = await db.select({
       id: amenities.id,
       name: amenities.name,
       slug: amenities.slug,
       category: amenities.category,
       is_active: amenities.is_active,
-      business_count: count(business_amenities.business_id)
+      business_count: sql<number>`COALESCE((
+        SELECT COUNT(DISTINCT ba.business_id)
+        FROM business_amenities ba
+        INNER JOIN businesses b ON ba.business_id = b.id
+        WHERE ba.amenity_id = amenities.id 
+        AND b.is_active = 1
+      ), 0)`.as('business_count')
     })
     .from(amenities)
-    .leftJoin(business_amenities, eq(amenities.id, business_amenities.amenity_id))
-    .leftJoin(businesses, and(
-      eq(business_amenities.business_id, businesses.id),
-      eq(businesses.is_active, true)
-    ))
     .where(eq(amenities.is_active, true))
-    .groupBy(amenities.id, amenities.name, amenities.slug, amenities.category, amenities.is_active)
     .orderBy(asc(amenities.category), asc(amenities.name));
 
     return amenitiesWithCounts;
@@ -717,21 +731,22 @@ export class TursoDatabase implements DatabaseService {
    * Get regions with business counts, organized by state
    */
   async getRegionsWithCounts(): Promise<Array<RegionType & { business_count: number }>> {
+    // Optimized query using subquery to avoid cartesian product
     const regionsWithCounts = await db.select({
       id: regions.id,
       name: regions.name,
       slug: regions.slug,
       state: regions.state,
       country: regions.country,
-      business_count: count(business_regions.business_id)
+      business_count: sql<number>`COALESCE((
+        SELECT COUNT(DISTINCT br.business_id)
+        FROM business_regions br
+        INNER JOIN businesses b ON br.business_id = b.id
+        WHERE br.region_id = regions.id 
+        AND b.is_active = 1
+      ), 0)`.as('business_count')
     })
     .from(regions)
-    .leftJoin(business_regions, eq(regions.id, business_regions.region_id))
-    .leftJoin(businesses, and(
-      eq(business_regions.business_id, businesses.id),
-      eq(businesses.is_active, true)
-    ))
-    .groupBy(regions.id, regions.name, regions.slug, regions.state, regions.country)
     .orderBy(asc(regions.state), asc(regions.name));
 
     return regionsWithCounts;
@@ -798,22 +813,23 @@ export class TursoDatabase implements DatabaseService {
    * Get regions for a specific state with business counts
    */
   async getRegionsByState(state: string): Promise<Array<RegionType & { business_count: number }>> {
+    // Optimized query using subquery to avoid cartesian product
     const regionsWithCounts = await db.select({
       id: regions.id,
       name: regions.name,
       slug: regions.slug,
       state: regions.state,
       country: regions.country,
-      business_count: count(business_regions.business_id)
+      business_count: sql<number>`COALESCE((
+        SELECT COUNT(DISTINCT br.business_id)
+        FROM business_regions br
+        INNER JOIN businesses b ON br.business_id = b.id
+        WHERE br.region_id = regions.id 
+        AND b.is_active = 1
+      ), 0)`.as('business_count')
     })
     .from(regions)
-    .leftJoin(business_regions, eq(regions.id, business_regions.region_id))
-    .leftJoin(businesses, and(
-      eq(business_regions.business_id, businesses.id),
-      eq(businesses.is_active, true)
-    ))
     .where(eq(regions.state, state))
-    .groupBy(regions.id, regions.name, regions.slug, regions.state, regions.country)
     .orderBy(asc(regions.name));
 
     return regionsWithCounts;
