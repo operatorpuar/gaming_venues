@@ -18,6 +18,15 @@ const allStatesWithCounts = await databaseService.getStatesWithCounts();
 const totalCount = allStatesWithCounts.length;
 const totalPages = Math.ceil(totalCount / limit);
 
+// Validate page number and redirect if necessary
+if (page < 1 || (totalPages > 0 && page > totalPages)) {
+  const validPage = page < 1 ? 1 : totalPages;
+  const newParams = new URLSearchParams(searchParams);
+  newParams.set('page', validPage.toString());
+  
+  return Astro.redirect(`/regions?${newParams.toString()}`);
+}
+
 // Get paginated states
 const statesWithCounts = allStatesWithCounts.slice(offset, offset + limit);
 
@@ -160,7 +169,6 @@ const structuredData = {
             totalItems={totalCount}
             itemsPerPage={limit}
           />
-        </>
         </>
       ) : (
         <!-- No states -->

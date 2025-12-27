@@ -18,6 +18,15 @@ const allAmenitiesWithCounts = await databaseService.getAmenitiesWithCounts();
 const totalCount = allAmenitiesWithCounts.length;
 const totalPages = Math.ceil(totalCount / limit);
 
+// Validate page number and redirect if necessary
+if (page < 1 || (totalPages > 0 && page > totalPages)) {
+  const validPage = page < 1 ? 1 : totalPages;
+  const newParams = new URLSearchParams(searchParams);
+  newParams.set('page', validPage.toString());
+  
+  return Astro.redirect(`/amenities?${newParams.toString()}`);
+}
+
 // Get paginated amenities
 const amenitiesWithCounts = allAmenitiesWithCounts.slice(offset, offset + limit);
 
@@ -193,7 +202,6 @@ const structuredData = {
             totalItems={totalCount}
             itemsPerPage={limit}
           />
-        </>
         </>
       ) : (
         <!-- No amenities -->

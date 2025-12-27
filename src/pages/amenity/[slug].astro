@@ -29,25 +29,33 @@ const page = parseInt(searchParams.get('page') || '1', 10);
 const limit = 12; // Number of businesses per page
 const offset = (page - 1) * limit;
 
-// Create pagination object
+// Set up filters for this amenity
+const filters: BusinessFilters = {
+  amenities: [amenity.id]
+};
+
+// First, get the total count to validate the page number
+const totalCount = await databaseService.getBusinessCount(filters);
+const totalPages = Math.ceil(totalCount / limit);
+
+// Validate page number and redirect if necessary
+if (page < 1 || (totalPages > 0 && page > totalPages)) {
+  const validPage = page < 1 ? 1 : totalPages;
+  const newParams = new URLSearchParams(searchParams);
+  newParams.set('page', validPage.toString());
+  
+  return Astro.redirect(`/amenity/${slug}?${newParams.toString()}`);
+}
+
+// Create pagination object with validated page
 const pagination: PaginationType = {
   page,
   limit,
   offset
 };
 
-// Set up filters for this amenity
-const filters: BusinessFilters = {
-  amenities: [amenity.id]
-};
-
-// Fetch businesses and total count for this amenity
-const [businesses, totalCount] = await Promise.all([
-  databaseService.getBusinesses(filters, pagination),
-  databaseService.getBusinessCount(filters)
-]);
-
-const totalPages = Math.ceil(totalCount / limit);
+// Fetch businesses for this amenity
+const businesses = await databaseService.getBusinesses(filters, pagination);
 
 // Update pagination with totals
 pagination.total = totalCount;

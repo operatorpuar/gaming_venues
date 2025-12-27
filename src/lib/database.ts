@@ -538,7 +538,9 @@ export class TursoDatabase implements DatabaseService {
       .from(businesses)
       .where(and(...conditions));
 
-    return result[0]?.count || 0;
+    const finalCount = result[0]?.count || 0;
+    
+    return finalCount;
   }
 
   /**
