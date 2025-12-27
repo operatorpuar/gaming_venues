@@ -1,0 +1,311 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import { databaseService } from '../../lib/database';
+import { generateBusinessSEO } from '../../lib/seo';
+import type { BusinessDetail } from '../../lib/types';
+
+// Get the slug from the URL
+const { slug } = Astro.params;
+
+if (!slug) {
+  return Astro.redirect('/businesses');
+}
+
+// Fetch business details
+const business: BusinessDetail | null = await databaseService.getBusinessBySlug(slug);
+
+if (!business) {
+  return Astro.redirect('/businesses');
+}
+
+// Generate SEO metadata using the new system
+const seoData = generateBusinessSEO(business);
+
+// Fallback image
+const businessImage = business.image_url || '/placeholder-business.svg';
+
+// Generate star rating
+function generateStarRating(rating: number) {
+  const fullStars = Math.floor(rating);
+  const hasHalfStar = rating % 1 >= 0.5;
+  const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+  
+  return { fullStars, hasHalfStar, emptyStars };
+}
+
+const { fullStars, hasHalfStar, emptyStars } = generateStarRating(business.rating);
+
+// Group amenities by category
+const amenitiesByCategory = business.amenities.reduce((acc, amenity) => {
+  if (!acc[amenity.category]) {
+    acc[amenity.category] = [];
+  }
+  acc[amenity.category].push(amenity);
+  return acc;
+}, {} as Record<string, typeof business.amenities>);
+---
+
+<Layout
+  title={seoData.title}
+  description={seoData.description}
+  canonical={seoData.canonical}
+  image={seoData.image}
+  type="business.business"
+  structuredData={seoData.structuredData}
+>
+
+  <main class="min-h-screen bg-base-200">
+    <!-- Breadcrumb -->
+    <Breadcrumbs 
+      items={[
+        { name: 'Home', url: '/' },
+        { name: 'All Venues', url: '/businesses' }
+      ]}
+      current={business.name}
+    />
+
+    <!-- Business Header -->
+    <div class="bg-base-100">
+      <div class="container mx-auto px-4 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <!-- Business Image -->
+          <div class="lg:col-span-1">
+            <figure class="relative">
+              <img 
+                src={businessImage} 
+                alt={business.name}
+                class="w-full h-64 lg:h-80 object-cover rounded-lg shadow-lg"
+              />
+              {business.featured && (
+                <div class="absolute top-4 left-4">
+                  <div class="badge badge-secondary badge-lg font-semibold">Featured</div>
+                </div>
+              )}
+            </figure>
+          </div>
+
+          <!-- Business Info -->
+          <div class="lg:col-span-2">
+            <div class="flex flex-col h-full">
+              <!-- Title and badges -->
+              <div class="mb-4">
+                <h1 class="text-3xl lg:text-4xl font-bold text-base-content mb-2">
+                  {business.name}
+                  {business.verified && (
+                    <div class="badge badge-primary gap-1 ml-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      Verified
+                    </div>
+                  )}
+                </h1>
+                
+                {business.business_type && (
+                  <div class="badge badge-outline badge-lg">{business.business_type}</div>
+                )}
+              </div>
+
+              <!-- Rating and reviews -->
+              <div class="flex items-center gap-3 mb-4">
+                <div class="rating rating-lg">
+                  {Array.from({ length: fullStars }, (_, i) => (
+                    <input type="radio" class="mask mask-star-2 bg-orange-400" disabled checked />
+                  ))}
+                  {hasHalfStar && (
+                    <input type="radio" class="mask mask-star-2 bg-orange-400" disabled checked />
+                  )}
+                  {Array.from({ length: emptyStars }, (_, i) => (
+                    <input type="radio" class="mask mask-star-2 bg-gray-300" disabled />
+                  ))}
+                </div>
+                <span class="text-lg font-semibold">
+                  {business.rating.toFixed(1)} ({business.reviews_count.toLocaleString()} reviews)
+                </span>
+              </div>
+
+              <!-- Description -->
+              {business.description && (
+                <p class="text-base-content/80 mb-6 leading-relaxed">
+                  {business.description}
+                </p>
+              )}
+
+              <!-- Contact Info -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-auto">
+                {business.phone && (
+                  <div class="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                    <a href={`tel:${business.phone}`} class="link link-primary">{business.phone}</a>
+                  </div>
+                )}
+                
+                {business.website && (
+                  <div class="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9m0 9c-5 0-9-4-9-9s4-9 9-9" />
+                    </svg>
+                    <a href={business.website} target="_blank" rel="noopener noreferrer" class="link link-primary">
+                      Visit Website
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Details Section -->
+    <div class="container mx-auto px-4 py-8">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Main Content -->
+        <div class="lg:col-span-2 space-y-8">
+          <!-- Categories -->
+          {business.categories.length > 0 && (
+            <div class="card bg-base-100 shadow-xl">
+              <div class="card-body">
+                <h2 class="card-title text-xl mb-4">Categories</h2>
+                <div class="flex flex-wrap gap-2">
+                  {business.categories.map(category => (
+                    <a href={`/category/${category.slug}`} class="badge badge-primary badge-lg hover:badge-primary-focus transition-colors">
+                      {category.name}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <!-- Amenities -->
+          {Object.keys(amenitiesByCategory).length > 0 && (
+            <div class="card bg-base-100 shadow-xl">
+              <div class="card-body">
+                <h2 class="card-title text-xl mb-4">Amenities & Features</h2>
+                <div class="space-y-4">
+                  {Object.entries(amenitiesByCategory).map(([category, amenities]) => (
+                    <div>
+                      <h3 class="font-semibold text-lg mb-2 text-primary">{category}</h3>
+                      <div class="flex flex-wrap gap-2">
+                        {amenities.map(amenity => (
+                          <div class="badge badge-outline">{amenity.name}</div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="lg:col-span-1 space-y-6">
+          <!-- Location -->
+          <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+              <h2 class="card-title text-xl mb-4">Location</h2>
+              <div class="space-y-3">
+                <div class="flex items-start gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <div>
+                    <p class="font-medium">{business.full_address}</p>
+                    <p class="text-sm text-base-content/70">{business.city}, {business.state} {business.zip_code}</p>
+                  </div>
+                </div>
+                
+                <!-- Embedded Map -->
+                {business.lat && business.lng && (
+                  <div class="mb-4">
+                    <div id="business-map" class="w-full h-48 rounded-lg border" data-lat={business.lat} data-lng={business.lng} data-name={business.name}></div>
+                    <script>
+                      // Simple embedded map using OpenStreetMap
+                      document.addEventListener('DOMContentLoaded', function() {
+                        const mapElement = document.getElementById('business-map');
+                        if (mapElement) {
+                          const lat = parseFloat(mapElement.dataset.lat || '0');
+                          const lng = parseFloat(mapElement.dataset.lng || '0');
+                          const name = mapElement.dataset.name || 'Business Location';
+                          
+                          // Create a simple static map image using OpenStreetMap
+                          const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${lng-0.01},${lat-0.01},${lng+0.01},${lat+0.01}&layer=mapnik&marker=${lat},${lng}`;
+                          
+                          mapElement.innerHTML = `
+                            <iframe 
+                              src="${mapUrl}"
+                              width="100%" 
+                              height="100%" 
+                              style="border: none; border-radius: 0.5rem;"
+                              title="Map showing location of ${name}"
+                            ></iframe>
+                          `;
+                        }
+                      });
+                    </script>
+                  </div>
+                )}
+                
+                {business.maps_url && (
+                  <a href={business.maps_url} target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm w-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-1.447-.894L15 4m0 13V4m0 0L9 7" />
+                    </svg>
+                    View on Maps
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <!-- Regions -->
+          {business.regions.length > 0 && (
+            <div class="card bg-base-100 shadow-xl">
+              <div class="card-body">
+                <h2 class="card-title text-xl mb-4">Regions</h2>
+                <div class="space-y-2">
+                  {business.regions.map(region => (
+                    <a href={`/region/${region.slug}`} class="block p-2 rounded hover:bg-base-200 transition-colors">
+                      <div class="font-medium">{region.name}</div>
+                      <div class="text-sm text-base-content/70">{region.state}</div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <!-- Actions -->
+          <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+              <h2 class="card-title text-xl mb-4">Actions</h2>
+              <div class="space-y-2">
+                <a href="/businesses" class="btn btn-outline w-full">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                  Back to All Venues
+                </a>
+                
+                {business.website && (
+                  <a href={business.website} target="_blank" rel="noopener noreferrer" class="btn btn-primary w-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    Visit Website
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</Layout>

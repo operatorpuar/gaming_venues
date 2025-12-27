@@ -1,0 +1,145 @@
+---
+import type { BusinessResult } from '../lib/types';
+
+interface Props {
+  business: BusinessResult;
+}
+
+const { business } = Astro.props;
+
+// Format address for display
+const displayAddress = business.city && business.state 
+  ? `${business.city}, ${business.state}` 
+  : business.full_address;
+
+// Fallback image if business image is not available
+const businessImage = business.image_url || '/placeholder-business.svg';
+
+// Generate star rating
+const stars = Array.from({ length: 5 }, (_, i) => {
+  const starValue = i + 1;
+  const isFilled = starValue <= business.rating;
+  const isHalf = !isFilled && starValue - 0.5 <= business.rating;
+  return {
+    filled: isFilled || isHalf,
+    index: i
+  };
+});
+---
+
+<div class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow duration-300">
+  <!-- Featured badge overlay -->
+  {business.featured ? (
+    <div class="absolute top-4 left-4 z-10">
+      <div class="badge badge-secondary badge-lg font-semibold">Featured</div>
+    </div>
+  ) : null}
+  
+  <!-- Business image -->
+  <figure class="relative">
+    <img 
+      src={businessImage} 
+      alt={business.name}
+      class="w-full h-48 object-cover"
+      loading="lazy"
+    />
+  </figure>
+  
+  <!-- Card content -->
+  <div class="card-body">
+    <!-- Business name and verification badge -->
+    <h2 class="card-title text-lg font-bold">
+      {business.name}
+      {business.verified ? (
+        <div class="badge badge-primary gap-1">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          Verified
+        </div>
+      ) : null}
+    </h2>
+    
+    <!-- Rating and reviews -->
+    <div class="flex items-center gap-2 mb-2">
+      <div class="flex items-center gap-1">
+        <!-- Star rating display -->
+        {stars.map(star => (
+          <svg 
+            class={`w-4 h-4 ${star.filled ? 'text-yellow-400' : 'text-gray-300'}`}
+            fill="currentColor" 
+            viewBox="0 0 20 20"
+          >
+            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+          </svg>
+        ))}
+      </div>
+      
+      <span class="text-sm text-base-content/70">
+        {business.rating.toFixed(1)} ({business.reviews_count} reviews)
+      </span>
+    </div>
+    
+    <!-- Business type -->
+    {business.business_type ? (
+      <div class="badge badge-outline badge-sm mb-2">{business.business_type}</div>
+    ) : null}
+    
+    <!-- Address -->
+    <p class="text-sm text-base-content/70 mb-2">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+      {displayAddress}
+    </p>
+    
+    <!-- Description (truncated) -->
+    {business.description ? (
+      <p class="text-sm text-base-content/80 line-clamp-2 mb-3">
+        {business.description.length > 120 
+          ? business.description.substring(0, 120) + '...' 
+          : business.description
+        }
+      </p>
+    ) : null}
+    
+    <!-- Categories -->
+    {business.categories && business.categories.length > 0 ? (
+      <div class="flex flex-wrap gap-1 mb-3">
+        {business.categories.slice(0, 3).map(category => (
+          <div class="badge badge-ghost badge-sm">{category.name}</div>
+        ))}
+        {business.categories.length > 3 ? (
+          <div class="badge badge-ghost badge-sm">+{business.categories.length - 3} more</div>
+        ) : null}
+      </div>
+    ) : null}
+    
+    <!-- Action buttons -->
+    <div class="card-actions justify-end mt-auto">
+      {business.website ? (
+        <a 
+          href={business.website} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          class="btn btn-outline btn-sm"
+        >
+          Website
+        </a>
+      ) : null}
+      <a href={`/business/${business.slug}`} class="btn btn-primary btn-sm">
+        View Details
+      </a>
+    </div>
+  </div>
+</div>
+
+<style>
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+</style>

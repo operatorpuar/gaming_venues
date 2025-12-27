@@ -1,0 +1,58 @@
+---
+// SEO Head Component - Handles all SEO metadata generation
+interface Props {
+  title?: string;
+  description?: string;
+  canonical?: string;
+  image?: string;
+  type?: 'website' | 'article' | 'business.business';
+  structuredData?: Record<string, any>;
+  noindex?: boolean;
+}
+
+const {
+  title = 'Gaming Venues Directory',
+  description = 'Discover the best gambling establishments and gaming venues',
+  canonical,
+  image = '/placeholder-business.svg',
+  type = 'website',
+  structuredData,
+  noindex = false
+} = Astro.props;
+
+// Ensure absolute URLs for Open Graph
+const baseUrl = Astro.site?.toString() || 'https://example.com';
+const absoluteImage = image.startsWith('http') ? image : `${baseUrl}${image}`;
+const absoluteCanonical = canonical ? (canonical.startsWith('http') ? canonical : `${baseUrl}${canonical}`) : `${baseUrl}${Astro.url.pathname}`;
+---
+
+<!-- Primary Meta Tags -->
+<title>{title}</title>
+<meta name="description" content={description} />
+{canonical && <link rel="canonical" href={absoluteCanonical} />}
+{noindex && <meta name="robots" content="noindex, nofollow" />}
+
+<!-- Open Graph / Facebook -->
+<meta property="og:type" content={type} />
+<meta property="og:url" content={absoluteCanonical} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:image" content={absoluteImage} />
+<meta property="og:site_name" content="Gaming Venues Directory" />
+
+<!-- Twitter -->
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:url" content={absoluteCanonical} />
+<meta property="twitter:title" content={title} />
+<meta property="twitter:description" content={description} />
+<meta property="twitter:image" content={absoluteImage} />
+
+<!-- Additional SEO Meta Tags -->
+<meta name="author" content="Gaming Venues Directory" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#1f2937" />
+
+<!-- Structured Data -->
+{structuredData && (
+  <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
+)}

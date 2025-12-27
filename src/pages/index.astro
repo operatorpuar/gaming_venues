@@ -1,11 +1,187 @@
 ---
-import Welcome from '../components/Welcome.astro';
 import Layout from '../layouts/Layout.astro';
+import BusinessCard from '../components/BusinessCard.astro';
+import { databaseService } from '../lib/database';
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+// Fetch featured businesses for the homepage
+const featuredBusinesses = await databaseService.getBusinesses(
+  { featured_only: true }, 
+  { page: 1, limit: 8, offset: 0 }
+);
+
+// Get some stats for the homepage
+const [totalBusinesses, totalCategories] = await Promise.all([
+  databaseService.getBusinessCount({}),
+  databaseService.getCategories().then(cats => cats.filter(c => c.is_active).length)
+]);
+
+// SEO data for homepage
+const seoData = {
+  title: 'Gaming Venues Directory - Discover the Best Gambling Establishments',
+  description: 'Find the best gambling venues, casinos, and gaming establishments. Browse by location, category, and amenities. Discover featured and verified venues near you.',
+  canonical: '/',
+  structuredData: {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Gaming Venues Directory",
+    "description": "Discover the best gambling establishments and gaming venues",
+    "url": "/",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "/businesses?query={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
+};
 ---
 
-<Layout>
-	<Welcome />
+<Layout
+  title={seoData.title}
+  description={seoData.description}
+  canonical={seoData.canonical}
+  structuredData={seoData.structuredData}
+>
+  <main class="min-h-screen bg-base-200">
+    <!-- Hero Section -->
+    <div class="hero min-h-[60vh] bg-gradient-to-br from-primary to-secondary">
+      <div class="hero-content text-center text-primary-content">
+        <div class="max-w-4xl">
+          <h1 class="text-5xl md:text-6xl font-bold mb-6">
+            Gaming Venues Directory
+          </h1>
+          <p class="text-xl md:text-2xl mb-8 opacity-90">
+            Discover the best gambling establishments and gaming venues
+          </p>
+          
+          <!-- Quick Search -->
+          <div class="max-w-2xl mx-auto mb-8">
+            <form action="/businesses" method="GET" class="join w-full">
+              <input 
+                type="text" 
+                name="query"
+                placeholder="Search venues, locations, or amenities..." 
+                class="input input-bordered join-item flex-1 text-base-content"
+              />
+              <button type="submit" class="btn btn-accent join-item">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                Search
+              </button>
+            </form>
+          </div>
+          
+          <!-- Quick Stats -->
+          <div class="flex justify-center gap-8 text-center">
+            <div>
+              <div class="text-3xl font-bold">{totalBusinesses.toLocaleString()}</div>
+              <div class="text-sm opacity-80">Gaming Venues</div>
+            </div>
+            <div>
+              <div class="text-3xl font-bold">{totalCategories}</div>
+              <div class="text-sm opacity-80">Categories</div>
+            </div>
+            <div>
+              <div class="text-3xl font-bold">{featuredBusinesses.length}</div>
+              <div class="text-sm opacity-80">Featured</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Featured Venues Section -->
+    {featuredBusinesses.length > 0 && (
+      <div class="container mx-auto px-4 py-12">
+        <div class="text-center mb-8">
+          <h2 class="text-3xl font-bold text-base-content mb-4">Featured Gaming Venues</h2>
+          <p class="text-base-content/70 max-w-2xl mx-auto">
+            Discover our handpicked selection of premium gambling establishments and gaming venues
+          </p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
+          {featuredBusinesses.map(business => (
+            <BusinessCard business={business} />
+          ))}
+        </div>
+        
+        <div class="text-center">
+          <a href="/businesses?featured=true" class="btn btn-primary btn-lg">
+            View All Featured Venues
+          </a>
+        </div>
+      </div>
+    )}
+
+    <!-- Quick Actions -->
+    <div class="bg-base-100">
+      <div class="container mx-auto px-4 py-12">
+        <div class="text-center mb-8">
+          <h2 class="text-3xl font-bold text-base-content mb-4">Explore Gaming Venues</h2>
+          <p class="text-base-content/70">Find venues by category, location, or special features</p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <!-- Browse All -->
+          <a href="/businesses" class="card bg-base-200 hover:bg-base-300 transition-colors cursor-pointer">
+            <div class="card-body text-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-primary mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              <h3 class="card-title justify-center">Browse All</h3>
+              <p class="text-sm text-base-content/70">View all gaming venues</p>
+            </div>
+          </a>
+          
+          <!-- Verified Venues -->
+          <a href="/businesses?verified=true" class="card bg-base-200 hover:bg-base-300 transition-colors cursor-pointer">
+            <div class="card-body text-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-primary mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <h3 class="card-title justify-center">Verified</h3>
+              <p class="text-sm text-base-content/70">Trusted establishments</p>
+            </div>
+          </a>
+          
+          <!-- By Category -->
+          <a href="/categories" class="card bg-base-200 hover:bg-base-300 transition-colors cursor-pointer">
+            <div class="card-body text-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-primary mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              <h3 class="card-title justify-center">Categories</h3>
+              <p class="text-sm text-base-content/70">Browse by type</p>
+            </div>
+          </a>
+          
+          <!-- By Location -->
+          <a href="/regions" class="card bg-base-200 hover:bg-base-300 transition-colors cursor-pointer">
+            <div class="card-body text-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-primary mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <h3 class="card-title justify-center">Locations</h3>
+              <p class="text-sm text-base-content/70">Find venues near you</p>
+            </div>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Call to Action -->
+    <div class="bg-gradient-to-r from-secondary to-accent">
+      <div class="container mx-auto px-4 py-12 text-center text-secondary-content">
+        <h2 class="text-3xl font-bold mb-4">Ready to Explore?</h2>
+        <p class="text-xl mb-8 opacity-90">
+          Start your gaming adventure by browsing our comprehensive directory
+        </p>
+        <a href="/businesses" class="btn btn-primary btn-lg">
+          Browse All Gaming Venues
+        </a>
+      </div>
+    </div>
+  </main>
 </Layout>

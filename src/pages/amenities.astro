@@ -1,0 +1,217 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { databaseService } from '../lib/database';
+import { generateBreadcrumbStructuredData } from '../lib/seo';
+
+// Fetch amenities with business counts
+const amenitiesWithCounts = await databaseService.getAmenitiesWithCounts();
+
+// Group amenities by category
+const amenitiesByCategory = amenitiesWithCounts.reduce((acc, amenity) => {
+  const category = amenity.category || 'Other';
+  if (!acc[category]) {
+    acc[category] = [];
+  }
+  acc[category].push(amenity);
+  return acc;
+}, {} as Record<string, typeof amenitiesWithCounts>);
+
+// Sort categories alphabetically
+const sortedCategories = Object.keys(amenitiesByCategory).sort();
+
+// Generate breadcrumb structured data
+const breadcrumbs = [
+  { name: 'Home', url: '/' },
+  { name: 'Amenities', url: '/amenities' }
+];
+
+const breadcrumbStructuredData = generateBreadcrumbStructuredData(breadcrumbs);
+
+// SEO metadata
+const title = 'Gaming Venue Amenities - Directory';
+const description = `Browse gaming venues by amenities and services. Discover ${amenitiesWithCounts.length} different amenities offered by gambling establishments.`;
+const canonical = '/amenities';
+
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": title,
+  "description": description,
+  "url": canonical,
+  "breadcrumb": breadcrumbStructuredData,
+  "mainEntity": {
+    "@type": "ItemList",
+    "numberOfItems": amenitiesWithCounts.length,
+    "itemListElement": amenitiesWithCounts.map((amenity, index) => ({
+      "@type": "ListItem",
+      "position": index + 1,
+      "name": amenity.name,
+      "url": `/amenity/${amenity.slug}`,
+      "description": `${amenity.business_count} venues offer this amenity`
+    }))
+  }
+};
+---
+
+<Layout
+  title={title}
+  description={description}
+  canonical={canonical}
+  structuredData={structuredData}
+>
+  <main class="min-h-screen bg-base-200">
+    <!-- Header Section -->
+    <div class="bg-base-100 shadow-sm">
+      <div class="container mx-auto px-4 py-8">
+        <div class="text-center">
+          <h1 class="text-3xl md:text-4xl font-bold text-base-content mb-4">
+            Gaming Venue Amenities
+          </h1>
+          <p class="text-lg text-base-content/70 max-w-2xl mx-auto">
+            Browse gaming venues by amenities and services. Find venues that offer the specific features you're looking for.
+          </p>
+        </div>
+        
+        <!-- Stats -->
+        <div class="flex justify-center mt-6">
+          <div class="stats shadow">
+            <div class="stat">
+              <div class="stat-title">Total Amenities</div>
+              <div class="stat-value text-primary">{amenitiesWithCounts.length}</div>
+              <div class="stat-desc">Available services</div>
+            </div>
+            <div class="stat">
+              <div class="stat-title">Categories</div>
+              <div class="stat-value">{sortedCategories.length}</div>
+              <div class="stat-desc">Amenity groups</div>
+            </div>
+            <div class="stat">
+              <div class="stat-title">Total Venues</div>
+              <div class="stat-value">{amenitiesWithCounts.reduce((sum, amenity) => sum + amenity.business_count, 0).toLocaleString()}</div>
+              <div class="stat-desc">Offering amenities</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Breadcrumbs -->
+    <div class="container mx-auto px-4 py-4">
+      <div class="breadcrumbs text-sm">
+        <ul>
+          <li><a href="/" class="link link-hover">Home</a></li>
+          <li>Amenities</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Amenities by Category -->
+    <div class="container mx-auto px-4 py-8">
+      {sortedCategories.length > 0 ? (
+        <div class="space-y-12">
+          {sortedCategories.map(categoryName => (
+            <div class="space-y-6">
+              <!-- Category Header -->
+              <div class="text-center">
+                <h2 class="text-2xl font-bold text-base-content mb-2">
+                  {categoryName}
+                </h2>
+                <p class="text-base-content/70">
+                  {amenitiesByCategory[categoryName].length} amenities in this category
+                </p>
+              </div>
+              
+              <!-- Amenities Grid -->
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {amenitiesByCategory[categoryName].map(amenity => (
+                  <div class="card bg-base-100 shadow-lg hover:shadow-xl transition-shadow duration-300">
+                    <div class="card-body p-4">
+                      <h3 class="card-title text-lg font-semibold">
+                        {amenity.name}
+                      </h3>
+                      
+                      <div class="flex items-center gap-2 mb-3">
+                        <div class="badge badge-secondary">
+                          {amenity.business_count.toLocaleString()} venues
+                        </div>
+                        <div class="badge badge-outline badge-sm">
+                          {categoryName}
+                        </div>
+                      </div>
+                      
+                      <p class="text-sm text-base-content/70 mb-4">
+                        Find venues offering {amenity.name.toLowerCase()} services and amenities.
+                      </p>
+                      
+                      <div class="card-actions justify-end">
+                        <a 
+                          href={`/amenity/${amenity.slug}`} 
+                          class="btn btn-primary btn-sm"
+                        >
+                          View Venues
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                          </svg>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <!-- No amenities -->
+        <div class="text-center py-12">
+          <div class="max-w-md mx-auto">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 mx-auto text-base-content/30 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+            </svg>
+            <h2 class="text-2xl font-bold text-base-content mb-2">No amenities available</h2>
+            <p class="text-base-content/70 mb-4">
+              Amenities are currently being updated. Please check back later.
+            </p>
+            <a href="/businesses" class="btn btn-primary">
+              Browse All Venues
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="bg-base-100 mt-12">
+      <div class="container mx-auto px-4 py-8">
+        <div class="text-center mb-6">
+          <h2 class="text-2xl font-bold text-base-content">Explore More</h2>
+          <p class="text-base-content/70">Find venues by category or location</p>
+        </div>
+        
+        <div class="flex flex-wrap justify-center gap-4">
+          <a href="/categories" class="btn btn-outline">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            Browse Categories
+          </a>
+          
+          <a href="/regions" class="btn btn-outline">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Browse Regions
+          </a>
+          
+          <a href="/businesses" class="btn btn-outline">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            Search All Venues
+          </a>
+        </div>
+      </div>
+    </div>
+  </main>
+</Layout>

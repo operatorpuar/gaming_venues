@@ -1,0 +1,241 @@
+---
+import Layout from '../layouts/Layout.astro';
+import BusinessCard from '../components/BusinessCard.astro';
+import Pagination from '../components/Pagination.astro';
+import SearchAndFilter from '../components/SearchAndFilter.astro';
+import { databaseService } from '../lib/database';
+import { generateSearchSEO } from '../lib/seo';
+import type { BusinessFilters, Pagination as PaginationType } from '../lib/types';
+
+// Get query parameters
+const url = new URL(Astro.request.url);
+const searchParams = url.searchParams;
+
+// Parse pagination parameters
+const page = parseInt(searchParams.get('page') || '1', 10);
+const limit = 12; // Number of businesses per page
+const offset = (page - 1) * limit;
+
+// Parse search query
+const searchQuery = searchParams.get('query') || '';
+
+// Parse filter parameters
+const filters: BusinessFilters = {
+  categories: searchParams.get('categories')?.split(',').map(id => parseInt(id, 10)).filter(Boolean),
+  amenities: searchParams.get('amenities')?.split(',').map(id => parseInt(id, 10)).filter(Boolean),
+  regions: searchParams.get('regions')?.split(',').map(id => parseInt(id, 10)).filter(Boolean),
+  city: searchParams.get('city') || undefined,
+  state: searchParams.get('state') || undefined,
+  featured_only: searchParams.get('featured') === 'true',
+  verified_only: searchParams.get('verified') === 'true',
+  rating_min: searchParams.get('rating_min') ? parseFloat(searchParams.get('rating_min')!) : undefined,
+};
+
+// Create pagination object
+const pagination: PaginationType = {
+  page,
+  limit,
+  offset
+};
+
+// Fetch businesses and total count based on whether we have a search query
+let businesses, totalCount;
+if (searchQuery) {
+  [businesses, totalCount] = await Promise.all([
+    databaseService.searchBusinesses(searchQuery, filters, pagination),
+    databaseService.getSearchCount(searchQuery, filters)
+  ]);
+} else {
+  [businesses, totalCount] = await Promise.all([
+    databaseService.getBusinesses(filters, pagination),
+    databaseService.getBusinessCount(filters)
+  ]);
+}
+
+const totalPages = Math.ceil(totalCount / limit);
+
+// Update pagination with totals
+pagination.total = totalCount;
+pagination.totalPages = totalPages;
+
+// Fetch filter options for the search form
+const [categories, amenities, regions] = await Promise.all([
+  databaseService.getCategories(),
+  databaseService.getAmenities(),
+  databaseService.getRegions()
+]);
+
+// Generate SEO metadata using the new system
+const seoData = generateSearchSEO(searchQuery, filters, totalCount);
+---
+
+<Layout
+  title={seoData.title}
+  description={seoData.description}
+  canonical={seoData.canonical}
+  structuredData={seoData.structuredData}
+>
+
+  <main class="min-h-screen bg-base-200">
+    <!-- Compact Header Section -->
+    <div class="bg-base-100 shadow-sm">
+      <div class="container mx-auto px-4 py-4">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <!-- Title and description -->
+          <div class="text-center md:text-left">
+            <h1 class="text-2xl md:text-3xl font-bold text-base-content">
+              {searchQuery ? `Search Results` : 'Gaming Venues Directory'}
+            </h1>
+            <p class="text-sm text-base-content/70 mt-1">
+              {searchQuery 
+                ? `${totalCount.toLocaleString()} results for "${searchQuery}"`
+                : 'Discover gambling establishments and gaming venues'
+              }
+            </p>
+          </div>
+          
+          <!-- Compact stats -->
+          <div class="flex gap-4 justify-center md:justify-end">
+            <div class="text-center">
+              <div class="text-2xl font-bold text-primary">{totalCount.toLocaleString()}</div>
+              <div class="text-xs text-base-content/60">Venues</div>
+            </div>
+            <div class="text-center">
+              <div class="text-2xl font-bold">{page}</div>
+              <div class="text-xs text-base-content/60">of {totalPages}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search and Filter Section -->
+    <div class="container mx-auto px-4 py-4">
+      <SearchAndFilter 
+        categories={categories}
+        amenities={amenities}
+        regions={regions}
+        currentFilters={{
+          query: searchQuery,
+          categories: filters.categories,
+          amenities: filters.amenities,
+          regions: filters.regions,
+          city: filters.city,
+          state: filters.state,
+          featured_only: filters.featured_only,
+          verified_only: filters.verified_only,
+          rating_min: filters.rating_min
+        }}
+      />
+    </div>
+
+    <!-- Main Content -->
+    <div class="container mx-auto px-4 py-4">
+      <!-- Compact Filter Summary -->
+      {(filters.featured_only || filters.verified_only || filters.city || filters.state || filters.categories?.length || filters.amenities?.length || filters.regions?.length || searchQuery) && (
+        <div class="mb-4">
+          <div class="bg-info/10 border border-info/20 rounded-lg p-3">
+            <div class="flex flex-wrap gap-1 items-center text-sm">
+              <span class="font-medium text-info">Filters:</span>
+              {searchQuery && <div class="badge badge-accent badge-sm">"{searchQuery}"</div>}
+              {filters.featured_only && <div class="badge badge-secondary badge-sm">Featured</div>}
+              {filters.verified_only && <div class="badge badge-primary badge-sm">Verified</div>}
+              {filters.city && <div class="badge badge-outline badge-sm">{filters.city}</div>}
+              {filters.state && <div class="badge badge-outline badge-sm">{filters.state}</div>}
+              {filters.rating_min && <div class="badge badge-outline badge-sm">{filters.rating_min}+ ⭐</div>}
+              {filters.categories?.length && <div class="badge badge-info badge-sm">{filters.categories.length} Categories</div>}
+              {filters.amenities?.length && <div class="badge badge-success badge-sm">{filters.amenities.length} Amenities</div>}
+              {filters.regions?.length && <div class="badge badge-warning badge-sm">{filters.regions.length} Regions</div>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <!-- Business Grid -->
+      {businesses.length > 0 ? (
+        <>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {businesses.map(business => (
+              <BusinessCard business={business} />
+            ))}
+          </div>
+          
+          <!-- Pagination -->
+          <Pagination 
+            currentPage={page}
+            totalPages={totalPages}
+            baseUrl="/businesses"
+            searchParams={searchParams}
+          />
+        </>
+      ) : (
+        <!-- No results -->
+        <div class="text-center py-12">
+          <div class="max-w-md mx-auto">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 mx-auto text-base-content/30 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <h2 class="text-2xl font-bold text-base-content mb-2">No venues found</h2>
+            <p class="text-base-content/70 mb-4">
+              {searchQuery 
+                ? `We couldn't find any gaming establishments matching "${searchQuery}" with your current filters.`
+                : 'We couldn\'t find any gaming establishments matching your criteria.'
+              }
+            </p>
+            <div class="space-y-2">
+              <a href="/businesses" class="btn btn-primary">
+                View All Venues
+              </a>
+              {searchQuery && (
+                <a href={`/businesses?query=${encodeURIComponent(searchQuery)}`} class="btn btn-outline">
+                  Search Without Filters
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="bg-base-100 mt-12">
+      <div class="container mx-auto px-4 py-8">
+        <div class="text-center mb-6">
+          <h2 class="text-2xl font-bold text-base-content">Explore More</h2>
+          <p class="text-base-content/70">Find venues by category or location</p>
+        </div>
+        
+        <div class="flex flex-wrap justify-center gap-4">
+          <a href="/businesses?featured=true" class="btn btn-outline btn-secondary">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+            </svg>
+            Featured Venues
+          </a>
+          
+          <a href="/businesses?verified=true" class="btn btn-outline btn-primary">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Verified Venues
+          </a>
+          
+          <a href="/categories" class="btn btn-outline">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            Browse Categories
+          </a>
+          
+          <a href="/regions" class="btn btn-outline">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Browse Regions
+          </a>
+        </div>
+      </div>
+    </div>
+  </main>
+</Layout>

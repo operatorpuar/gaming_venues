@@ -1,0 +1,224 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import BusinessCard from '../../components/BusinessCard.astro';
+import Pagination from '../../components/Pagination.astro';
+import { databaseService } from '../../lib/database';
+import { generateRegionSEO, generateBreadcrumbStructuredData } from '../../lib/seo';
+import type { BusinessFilters, Pagination as PaginationType } from '../../lib/types';
+
+// Get the region slug from the URL
+const { slug } = Astro.params;
+
+if (!slug) {
+  return Astro.redirect('/regions');
+}
+
+// Get the region
+const region = await databaseService.getRegionBySlug(slug);
+
+if (!region) {
+  return Astro.redirect('/regions');
+}
+
+// Get query parameters for pagination
+const url = new URL(Astro.request.url);
+const searchParams = url.searchParams;
+
+// Parse pagination parameters
+const page = parseInt(searchParams.get('page') || '1', 10);
+const limit = 12; // Number of businesses per page
+const offset = (page - 1) * limit;
+
+// Create pagination object
+const pagination: PaginationType = {
+  page,
+  limit,
+  offset
+};
+
+// Set up filters for this region
+const filters: BusinessFilters = {
+  regions: [region.id]
+};
+
+// Fetch businesses and total count for this region
+const [businesses, totalCount] = await Promise.all([
+  databaseService.getBusinesses(filters, pagination),
+  databaseService.getBusinessCount(filters)
+]);
+
+const totalPages = Math.ceil(totalCount / limit);
+
+// Update pagination with totals
+pagination.total = totalCount;
+pagination.totalPages = totalPages;
+
+// Generate SEO metadata
+const seoData = generateRegionSEO(region, totalCount);
+
+// Generate breadcrumb structured data
+const stateSlug = region.state.toLowerCase().replace(/\s+/g, '-');
+const breadcrumbs = [
+  { name: 'Home', url: '/' },
+  { name: 'Regions', url: '/regions' },
+  { name: region.state, url: `/state/${stateSlug}` },
+  { name: region.name, url: `/region/${region.slug}` }
+];
+
+const breadcrumbStructuredData = generateBreadcrumbStructuredData(breadcrumbs);
+
+// Combine structured data
+const combinedStructuredData = {
+  ...seoData.structuredData,
+  breadcrumb: breadcrumbStructuredData
+};
+---
+
+<Layout
+  title={seoData.title}
+  description={seoData.description}
+  canonical={seoData.canonical}
+  structuredData={combinedStructuredData}
+>
+  <main class="min-h-screen bg-base-200">
+    <!-- Header Section -->
+    <div class="bg-base-100 shadow-sm">
+      <div class="container mx-auto px-4 py-8">
+        <div class="text-center">
+          <h1 class="text-3xl md:text-4xl font-bold text-base-content mb-4">
+            Gaming Venues in {region.name}
+          </h1>
+          <p class="text-lg text-base-content/70 max-w-2xl mx-auto">
+            Discover {totalCount.toLocaleString()} gaming venues and gambling establishments in {region.name}, {region.state}.
+          </p>
+        </div>
+        
+        <!-- Stats -->
+        <div class="flex justify-center mt-6">
+          <div class="stats shadow">
+            <div class="stat">
+              <div class="stat-title">Region</div>
+              <div class="stat-value text-primary">{region.name}</div>
+              <div class="stat-desc">{region.state}</div>
+            </div>
+            <div class="stat">
+              <div class="stat-title">Total Venues</div>
+              <div class="stat-value">{totalCount.toLocaleString()}</div>
+              <div class="stat-desc">In this region</div>
+            </div>
+            <div class="stat">
+              <div class="stat-title">Current Page</div>
+              <div class="stat-value">{page}</div>
+              <div class="stat-desc">of {totalPages}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Breadcrumbs -->
+    <div class="container mx-auto px-4 py-4">
+      <div class="breadcrumbs text-sm">
+        <ul>
+          <li><a href="/" class="link link-hover">Home</a></li>
+          <li><a href="/regions" class="link link-hover">Regions</a></li>
+          <li><a href={`/state/${stateSlug}`} class="link link-hover">{region.state}</a></li>
+          <li>{region.name}</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container mx-auto px-4 py-8">
+      <!-- Business Grid -->
+      {businesses.length > 0 ? (
+        <>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {businesses.map(business => (
+              <BusinessCard business={business} />
+            ))}
+          </div>
+          
+          <!-- Pagination -->
+          <Pagination 
+            currentPage={page}
+            totalPages={totalPages}
+            baseUrl={`/region/${region.slug}`}
+            searchParams={new URLSearchParams()}
+          />
+        </>
+      ) : (
+        <!-- No results -->
+        <div class="text-center py-12">
+          <div class="max-w-md mx-auto">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 mx-auto text-base-content/30 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <h2 class="text-2xl font-bold text-base-content mb-2">No venues found</h2>
+            <p class="text-base-content/70 mb-4">
+              We couldn't find any gaming venues in {region.name} at the moment.
+            </p>
+            <div class="space-y-2">
+              <a href={`/state/${stateSlug}`} class="btn btn-primary">
+                Browse Other Regions in {region.state}
+              </a>
+              <a href="/regions" class="btn btn-outline">
+                View All Regions
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+
+    <!-- Related Navigation -->
+    <div class="bg-base-100 mt-12">
+      <div class="container mx-auto px-4 py-8">
+        <div class="text-center mb-6">
+          <h2 class="text-2xl font-bold text-base-content">Explore More</h2>
+          <p class="text-base-content/70">Find venues by other criteria or locations</p>
+        </div>
+        
+        <div class="flex flex-wrap justify-center gap-4">
+          <a href={`/state/${stateSlug}`} class="btn btn-outline">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Other Regions in {region.state}
+          </a>
+          
+          <a href="/regions" class="btn btn-outline">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            All Regions
+          </a>
+          
+          <a href="/categories" class="btn btn-outline">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            Browse Categories
+          </a>
+          
+          <a href="/amenities" class="btn btn-outline">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+            </svg>
+            Browse Amenities
+          </a>
+          
+          <a href="/businesses" class="btn btn-outline">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            Search All Venues
+          </a>
+        </div>
+      </div>
+    </div>
+  </main>
+</Layout>

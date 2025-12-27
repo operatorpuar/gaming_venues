@@ -1,0 +1,54 @@
+---
+// Breadcrumb component with structured data for SEO
+import { generateBreadcrumbStructuredData } from '../lib/seo';
+
+interface BreadcrumbItem {
+  name: string;
+  url: string;
+}
+
+interface Props {
+  items: BreadcrumbItem[];
+  current?: string;
+}
+
+const { items, current } = Astro.props;
+
+// Generate structured data for breadcrumbs
+const breadcrumbItems = current 
+  ? [...items, { name: current, url: Astro.url.pathname }]
+  : items;
+
+const structuredData = generateBreadcrumbStructuredData(breadcrumbItems);
+---
+
+<!-- Breadcrumb structured data -->
+<script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
+
+<!-- Breadcrumb navigation -->
+<nav class="bg-base-100 shadow-sm" aria-label="Breadcrumb">
+  <div class="container mx-auto px-4 py-3">
+    <div class="breadcrumbs text-sm">
+      <ul>
+        {items.map((item, index) => (
+          <li>
+            <a 
+              href={item.url} 
+              class="link link-hover"
+              aria-label={`Go to ${item.name}`}
+            >
+              {item.name}
+            </a>
+          </li>
+        ))}
+        {current && (
+          <li>
+            <span class="text-base-content/70" aria-current="page">
+              {current}
+            </span>
+          </li>
+        )}
+      </ul>
+    </div>
+  </div>
+</nav>

@@ -1,0 +1,204 @@
+---
+import type { Category, Amenity, Region } from '../lib/types';
+
+interface Props {
+  categories: Category[];
+  amenities: Amenity[];
+  regions: Region[];
+  currentFilters: {
+    query?: string;
+    categories?: number[];
+    amenities?: number[];
+    regions?: number[];
+    city?: string;
+    state?: string;
+    featured_only?: boolean;
+    verified_only?: boolean;
+    rating_min?: number;
+  };
+}
+
+const { categories, amenities, regions, currentFilters } = Astro.props;
+
+// Group amenities by category for better organization
+const amenitiesByCategory = amenities.reduce((acc, amenity) => {
+  const category = amenity.category || 'Other';
+  if (!acc[category]) {
+    acc[category] = [];
+  }
+  acc[category].push(amenity);
+  return acc;
+}, {} as Record<string, typeof amenities>);
+
+// Group regions by state
+const regionsByState = regions.reduce((acc, region) => {
+  const state = region.state || 'Other';
+  if (!acc[state]) {
+    acc[state] = [];
+  }
+  acc[state].push(region);
+  return acc;
+}, {} as Record<string, typeof regions>);
+---
+
+<div class="bg-base-100 shadow-sm rounded-lg p-4 mb-6">
+  <form method="GET" action="/businesses" class="space-y-4">
+    <!-- Compact Search Bar -->
+    <div class="flex gap-2">
+      <input 
+        type="text" 
+        name="query" 
+        placeholder="Search venues..." 
+        class="input input-bordered input-sm flex-1"
+        value={currentFilters.query || ''}
+      />
+      <button type="submit" class="btn btn-primary btn-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Compact Quick Filters -->
+    <div class="flex flex-wrap gap-2 items-center">
+      <!-- Location Filters -->
+      <input 
+        type="text" 
+        name="city" 
+        placeholder="City" 
+        class="input input-bordered input-xs w-24"
+        value={currentFilters.city || ''}
+      />
+      <input 
+        type="text" 
+        name="state" 
+        placeholder="State" 
+        class="input input-bordered input-xs w-24"
+        value={currentFilters.state || ''}
+      />
+      
+      <!-- Rating Filter -->
+      <select name="rating_min" class="select select-bordered select-xs w-20">
+        <option value="">Rating</option>
+        <option value="3" selected={currentFilters.rating_min === 3}>3+</option>
+        <option value="4" selected={currentFilters.rating_min === 4}>4+</option>
+        <option value="4.5" selected={currentFilters.rating_min === 4.5}>4.5+</option>
+      </select>
+
+      <!-- Quick toggles -->
+      <label class="label cursor-pointer gap-1">
+        <input 
+          type="checkbox" 
+          name="featured" 
+          value="true" 
+          class="checkbox checkbox-xs"
+          checked={currentFilters.featured_only}
+        />
+        <span class="label-text text-xs">Featured</span>
+      </label>
+      
+      <label class="label cursor-pointer gap-1">
+        <input 
+          type="checkbox" 
+          name="verified" 
+          value="true" 
+          class="checkbox checkbox-xs"
+          checked={currentFilters.verified_only}
+        />
+        <span class="label-text text-xs">Verified</span>
+      </label>
+
+      <!-- Advanced Filters Toggle -->
+      <div class="dropdown dropdown-end">
+        <div tabindex="0" role="button" class="btn btn-outline btn-xs">
+          More Filters
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+        <div tabindex="0" class="dropdown-content z-[1] menu p-4 shadow bg-base-100 rounded-box w-80 max-h-96 overflow-y-auto">
+          <div class="grid grid-cols-1 gap-4">
+            <!-- Categories -->
+            <div>
+              <h4 class="font-semibold text-sm mb-2">Categories</h4>
+              <div class="space-y-1 max-h-32 overflow-y-auto">
+                {categories.slice(0, 10).map(category => (
+                  <label class="label cursor-pointer justify-start py-1">
+                    <input 
+                      type="checkbox" 
+                      name="categories" 
+                      value={category.id} 
+                      class="checkbox checkbox-xs mr-2"
+                      checked={currentFilters.categories?.includes(category.id)}
+                    />
+                    <span class="label-text text-xs">{category.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <!-- Amenities -->
+            <div>
+              <h4 class="font-semibold text-sm mb-2">Amenities</h4>
+              <div class="space-y-1 max-h-32 overflow-y-auto">
+                {Object.entries(amenitiesByCategory).slice(0, 3).map(([categoryName, categoryAmenities]) => (
+                  <div>
+                    <div class="text-xs font-medium text-base-content/70 mb-1">{categoryName}</div>
+                    <div class="space-y-1 ml-2">
+                      {categoryAmenities.slice(0, 5).map(amenity => (
+                        <label class="label cursor-pointer justify-start py-0">
+                          <input 
+                            type="checkbox" 
+                            name="amenities" 
+                            value={amenity.id} 
+                            class="checkbox checkbox-xs mr-2"
+                            checked={currentFilters.amenities?.includes(amenity.id)}
+                          />
+                          <span class="label-text text-xs">{amenity.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <button type="submit" class="btn btn-primary btn-xs">Apply</button>
+      <a href="/businesses" class="btn btn-ghost btn-xs">Clear</a>
+    </div>
+  </form>
+</div>
+
+<script>
+  // Handle form submission with proper URL encoding
+  document.querySelector('form')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this as HTMLFormElement);
+    const params = new URLSearchParams();
+    
+    // Handle regular form fields
+    for (const [key, value] of formData.entries()) {
+      if (value && value !== '') {
+        if (key === 'categories' || key === 'amenities' || key === 'regions') {
+          // Handle multiple checkbox values
+          const existing = params.get(key);
+          if (existing) {
+            params.set(key, existing + ',' + value);
+          } else {
+            params.set(key, value.toString());
+          }
+        } else {
+          params.set(key, value.toString());
+        }
+      }
+    }
+    
+    // Navigate to the filtered results
+    window.location.href = '/businesses?' + params.toString();
+  });
+</script>
